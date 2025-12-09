@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import supabase from './src/config/supabase.js';
 
 dotenv.config();
 
@@ -13,10 +14,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
 // Routes
-// import userRoutes from './src/routes/userRoutes.js';
-// import authRoutes from './src/routes/authRoutes.js';
-// app.use('/api/users', userRoutes);
-// app.use('/api/auth', authRoutes);
+import authRoutes from './src/routes/authRoutes.js';
+
+app.use('/cbt', authRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -34,8 +34,34 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+// Start server with Supabase
+async function startServer() {
+    try {
+        console.log('🔄 Initializing Supabase client...');
+
+        // Supabase client is initialized on import
+        // Connection happens lazily on first query
+        console.log('✅ Supabase client ready');
+
+        // Start server
+        app.listen(PORT, () => {
+            console.log('');
+            console.log(`✅ Server is running on port ${PORT}`);
+            console.log(`📡 API Base URL: http://localhost:${PORT}/cbt`);
+            console.log(`🔗 Supabase ready for database queries`);
+            console.log('');
+        });
+
+    } catch (error) {
+        console.error('❌ Server initialization failed:');
+        console.error('Error details:', error);
+        console.error('');
+        console.error('Please check your Supabase configuration');
+        console.error('');
+        process.exit(1);
+    }
+}
+
+startServer();
 
 export default app;

@@ -1,4 +1,4 @@
-import sql from '../config/database.js';
+import supabase from '../config/supabase.js';
 
 // Example service for database operations
 const userService = {
