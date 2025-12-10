@@ -15,13 +15,10 @@ app.use(express.static('public'));
 
 // Routes
 import authRoutes from './src/routes/authRoutes.js';
+import userRoutes from './src/routes/userRoutes.js';
 
 app.use('/cbt', authRoutes);
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'OK', message: 'Server is running' });
-});
+app.use('/cbt', userRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
