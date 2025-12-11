@@ -60,6 +60,7 @@ export const getAllUsers = async (req, res) => {
             };
         });
 
+        console.log('✅ Get all users response sent:', results.length, 'users');
         res.status(200).json({
             success: true,
             data: results
@@ -240,6 +241,7 @@ export const createUser = async (req, res) => {
                     user: { id: userId, email, role }
                 }
             });
+            console.log('✅ Create user response sent:', email, role);
 
         } catch (dbError) {
             // Rollback auth user

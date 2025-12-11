@@ -372,6 +372,7 @@ export const login = async (req, res) => {
                 break;
 
             default:
+                console.log('❌ Login failed - Invalid role for user:', userId);
                 return res.status(400).json({
                     error: 'Invalid role',
                     message: 'User has invalid role'
@@ -411,6 +412,7 @@ export const login = async (req, res) => {
                 token
             }
         });
+        console.log('✅ Login response sent for:', email);
 
     } catch (error) {
         console.error('=== LOGIN ERROR ===');
@@ -430,10 +432,12 @@ export const login = async (req, res) => {
  */
 export const logout = async (req, res) => {
     try {
+
         res.status(200).json({
             success: true,
             message: 'Logout successful. Please remove the token from client storage.'
         });
+        console.log('✅ Logout successful');
     } catch (error) {
         console.error('Logout error:', error);
         res.status(500).json({

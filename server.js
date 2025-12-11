@@ -16,9 +16,13 @@ app.use(express.static('public'));
 // Routes
 import authRoutes from './src/routes/authRoutes.js';
 import userRoutes from './src/routes/userRoutes.js';
+import kriteriaRoutes from './src/routes/kriteriaRoutes.js';
+import subKriteriaRoutes from './src/routes/subKriteriaRoutes.js';
 
 app.use('/cbt', authRoutes);
 app.use('/cbt', userRoutes);
+app.use('/cbt', kriteriaRoutes);
+app.use('/cbt', subKriteriaRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
