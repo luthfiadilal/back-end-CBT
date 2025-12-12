@@ -18,11 +18,19 @@ import authRoutes from './src/routes/authRoutes.js';
 import userRoutes from './src/routes/userRoutes.js';
 import kriteriaRoutes from './src/routes/kriteriaRoutes.js';
 import subKriteriaRoutes from './src/routes/subKriteriaRoutes.js';
+import examRoutes from './src/routes/examRoutes.js';
+import examAttemptRoutes from './src/routes/examAttemptRoutes.js';
+import questionRoutes from './src/routes/questionRoutes.js';
+import questionOptionRoutes from './src/routes/questionOptionRoutes.js';
 
 app.use('/cbt', authRoutes);
 app.use('/cbt', userRoutes);
 app.use('/cbt', kriteriaRoutes);
 app.use('/cbt', subKriteriaRoutes);
+app.use('/cbt', examRoutes);
+app.use('/cbt', examAttemptRoutes);
+app.use('/cbt', questionRoutes);
+app.use('/cbt', questionOptionRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
