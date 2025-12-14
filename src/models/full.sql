@@ -119,6 +119,7 @@ CREATE TABLE public.questions (
   pair_group text,
   created_at timestamp with time zone DEFAULT now(),
   question_type text NOT NULL DEFAULT 'mcq'::text CHECK (question_type = ANY (ARRAY['mcq'::text, 'essay'::text, 'pair'::text, 'truefalse'::text])),
+  image_url text,
   CONSTRAINT questions_pkey PRIMARY KEY (id),
   CONSTRAINT questions_exam_id_fkey FOREIGN KEY (exam_id) REFERENCES public.exams(id)
 );

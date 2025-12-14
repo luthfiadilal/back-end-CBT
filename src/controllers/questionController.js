@@ -1,8 +1,41 @@
 import supabase from '../config/supabase.js';
 
+import { v4 as uuidv4 } from 'uuid';
+
 export const createQuestion = async (req, res) => {
     try {
-        const { exam_id, question_text, difficulty_level, max_point, question_type, options } = req.body;
+        let { exam_id, question_text, difficulty_level, max_point, question_type, options } = req.body;
+
+        // Parse options if it comes as a string (from FormData)
+        if (typeof options === 'string') {
+            try {
+                options = JSON.parse(options);
+            } catch (e) {
+                console.error('Failed to parse options:', e);
+                options = [];
+            }
+        }
+
+        const file = req.file;
+
+        let image_url = null;
+
+        if (file) {
+            const filename = `question-${uuidv4()}-${file.originalname}`;
+            const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('image_question')
+                .upload(filename, file.buffer, {
+                    contentType: file.mimetype,
+                });
+
+            if (uploadError) throw uploadError;
+
+            const { data: publicUrlData } = supabase.storage
+                .from('image_question')
+                .getPublicUrl(filename);
+
+            image_url = publicUrlData.publicUrl;
+        }
 
         // Start a "transaction" by inserting question first
         const { data: questionData, error: questionError } = await supabase
@@ -12,7 +45,8 @@ export const createQuestion = async (req, res) => {
                 question_text,
                 difficulty_level,
                 max_point,
-                question_type: question_type || 'mcq'
+                question_type: question_type || 'mcq',
+                image_url
             }])
             .select()
             .single();
@@ -53,7 +87,7 @@ export const createQuestion = async (req, res) => {
 export const getAllQuestions = async (req, res) => {
     try {
         const { exam_id } = req.query;
-        let query = supabase.from('questions').select('*, question_options(*)');
+        let query = supabase.from('questions').select('*, question_options(*), exams(title)');
 
         if (exam_id) {
             query = query.eq('exam_id', exam_id);

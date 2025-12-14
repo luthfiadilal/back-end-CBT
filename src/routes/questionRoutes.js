@@ -9,7 +9,16 @@ import {
 
 const router = express.Router();
 
-router.post('/questions', createQuestion);
+import multer from 'multer';
+
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB limit
+    },
+});
+
+router.post('/questions', upload.single('image'), createQuestion);
 router.get('/questions', getAllQuestions);
 router.get('/questions/:id', getQuestionById);
 router.put('/questions/:id', updateQuestion);

@@ -261,7 +261,8 @@ export const register = async (req, res) => {
                         role
                     },
                     profile: responseProfile,
-                    token
+                    token,
+                    refresh_token: authData.session?.refresh_token
                 }
             });
 
@@ -409,7 +410,8 @@ export const login = async (req, res) => {
                     ...(appUser.role === 'siswa' && { nis: profile.nis, kelas: profile.kelas }),
                     ...(appUser.role === 'teacher' && { nip: profile.nip })
                 },
-                token
+                token,
+                refresh_token: authData.session?.refresh_token
             }
         });
         console.log('✅ Login response sent for:', email);
@@ -427,15 +429,81 @@ export const login = async (req, res) => {
 };
 
 /**
+ * Refresh Access Token
+ * POST /cbt/refresh-token
+ */
+export const refreshToken = async (req, res) => {
+    try {
+        const { refresh_token } = req.body;
+
+        if (!refresh_token) {
+            return res.status(400).json({
+                error: 'Validation error',
+                message: 'Refresh token is required'
+            });
+        }
+
+        // Verify session with Supabase
+        const { data, error } = await supabase.auth.refreshSession({ refresh_token });
+
+        if (error || !data.session) {
+            console.error('RefreshToken Error:', error?.message);
+            return res.status(401).json({
+                error: 'Unauthorized',
+                message: 'Invalid or expired refresh token'
+            });
+        }
+
+        const user = data.user;
+
+        // Fetch user role from our DB to generate custom JWT
+        const { data: appUser, error: userError } = await supabase
+            .from('app_users')
+            .select('role')
+            .eq('uid', user.id)
+            .single();
+
+        if (userError || !appUser) {
+            return res.status(401).json({
+                error: 'Unauthorized',
+                message: 'User role not found'
+            });
+        }
+
+        // Generate new Custom JWT
+        const newAccessToken = generateToken(user.id, user.email, appUser.role);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                token: newAccessToken,
+                refresh_token: data.session.refresh_token // Supabase might rotate it
+            }
+        });
+
+    } catch (error) {
+        console.error('RefreshToken System Error:', error);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: error.message
+        });
+    }
+};
+
+/**
  * Logout user
  * POST /cbt/logout
  */
 export const logout = async (req, res) => {
     try {
+        const { refresh_token } = req.body;
+        if (refresh_token) {
+            await supabase.auth.signOut(refresh_token);
+        }
 
         res.status(200).json({
             success: true,
-            message: 'Logout successful. Please remove the token from client storage.'
+            message: 'Logout successful'
         });
         console.log('✅ Logout successful');
     } catch (error) {
