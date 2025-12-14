@@ -1,4 +1,5 @@
-import supabase from '../config/supabase.js';
+import { createClient } from '@supabase/supabase-js';
+import supabase, { supabaseUrl, supabaseAnonKey } from '../config/supabase.js';
 import { generateToken } from '../utils/authUtils.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -261,7 +262,7 @@ export const register = async (req, res) => {
                         role
                     },
                     profile: responseProfile,
-                    token,
+                    token: authData.session?.access_token,
                     refresh_token: authData.session?.refresh_token
                 }
             });
@@ -410,7 +411,7 @@ export const login = async (req, res) => {
                     ...(appUser.role === 'siswa' && { nis: profile.nis, kelas: profile.kelas }),
                     ...(appUser.role === 'teacher' && { nip: profile.nip })
                 },
-                token,
+                token: authData.session?.access_token,
                 refresh_token: authData.session?.refresh_token
             }
         });
@@ -476,7 +477,7 @@ export const refreshToken = async (req, res) => {
         res.status(200).json({
             success: true,
             data: {
-                token: newAccessToken,
+                token: data.session.access_token,
                 refresh_token: data.session.refresh_token // Supabase might rotate it
             }
         });
@@ -511,6 +512,126 @@ export const logout = async (req, res) => {
         res.status(500).json({
             error: 'Internal server error',
             message: error.message || 'Logout failed'
+        });
+    }
+};
+
+/**
+ * Update user profile
+ * PUT /cbt/profile
+ */
+export const updateProfile = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const userRole = req.user.role;
+        const { nama, nis, tanggal_lahir, kelas, alamat, nip } = req.body;
+        const file = req.file;
+
+        console.log(`📝 Updating profile for user: ${userId}, Role: ${userRole}`);
+
+        // Create a user-scoped Supabase client using the token from the request
+        const token = req.headers.authorization.split(' ')[1];
+        const userSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+            global: {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            },
+        });
+
+        let imageUrl = null;
+
+        // 1. Handle Image Upload
+        if (file) {
+            console.log('📸 Processing new profile image for upload...');
+
+            const extension = file.mimetype.split('/')[1];
+            const filename = `${userId}-${Date.now()}.${extension}`;
+
+            // Use scoped client for storage upload
+            const { data: uploadData, error: uploadError } = await userSupabase.storage
+                .from(userRole)
+                .upload(filename, file.buffer, {
+                    contentType: file.mimetype,
+                    upsert: true
+                });
+
+            if (uploadError) {
+                console.error('❌ Image upload error:', uploadError);
+                throw new Error(`Image upload failed: ${uploadError.message}`);
+            }
+
+            const { data: { publicUrl } } = userSupabase.storage
+                .from(userRole)
+                .getPublicUrl(filename);
+
+            imageUrl = publicUrl;
+            console.log('✅ New image uploaded:', imageUrl);
+        }
+
+        // 2. Prepare update data
+        const updateData = {};
+        if (nama) updateData.nama = nama;
+        if (imageUrl) updateData.image_url = imageUrl;
+
+        // Role specific fields
+        if (userRole === 'siswa') {
+            if (nis) updateData.nis = nis;
+            if (tanggal_lahir) updateData.tanggal_lahir = tanggal_lahir;
+            if (kelas) updateData.kelas = kelas;
+            if (alamat) updateData.alamat = alamat;
+        } else if (userRole === 'teacher') {
+            if (nip) updateData.nip = nip;
+        }
+
+        // 3. Update Table using userSupabase
+        let table = userRole;
+
+        const { data: updatedProfile, error: updateError } = await userSupabase
+            .from(table)
+            .update(updateData)
+            .eq('user_uid', userId)
+            .select()
+            .single();
+
+        if (updateError) {
+            console.error(`❌ Error updating ${table} for user ${userId}:`, updateError);
+            throw updateError;
+        }
+
+        console.log('✅ Profile updated successfully');
+
+        // 4. Return updated data
+        res.status(200).json({
+            success: true,
+            message: 'Profile updated successfully',
+            data: {
+                user: {
+                    id: userId,
+                    email: req.user.email,
+                    role: userRole
+                },
+                profile: {
+                    id: updatedProfile.id,
+                    nama: updatedProfile.nama,
+                    email: updatedProfile.email,
+                    image_url: updatedProfile.image_url,
+                    ...(userRole === 'siswa' && {
+                        nis: updatedProfile.nis,
+                        kelas: updatedProfile.kelas,
+                        tanggal_lahir: updatedProfile.tanggal_lahir,
+                        alamat: updatedProfile.alamat
+                    }),
+                    ...(userRole === 'teacher' && { nip: updatedProfile.nip })
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Update profile error:', error);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: error.message || 'Failed to update profile'
         });
     }
 };
