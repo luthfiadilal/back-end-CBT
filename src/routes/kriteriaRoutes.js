@@ -19,8 +19,8 @@ router.get('/kriteria', getAllKriteria);
 router.get('/kriteria/:id', getKriteriaById);
 
 // Admin only routes for modification
-router.post('/kriteria', requireRole('admin'), createKriteria);
-router.put('/kriteria/:id', requireRole('admin'), updateKriteria);
-router.delete('/kriteria/:id', requireRole('admin'), deleteKriteria);
+router.post('/kriteria', requireRole('teacher'), createKriteria);
+router.put('/kriteria/:id', requireRole('teacher'), updateKriteria);
+router.delete('/kriteria/:id', requireRole('teacher'), deleteKriteria);
 
 export default router;
