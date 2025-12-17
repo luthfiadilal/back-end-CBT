@@ -46,7 +46,8 @@ export const createQuestion = async (req, res) => {
                 difficulty_level,
                 max_point,
                 question_type: question_type || 'mcq',
-                image_url
+                image_url,
+                pair_group: req.body.pair_group || null // Add pair_group here
             }])
             .select()
             .single();
@@ -121,13 +122,72 @@ export const getQuestionById = async (req, res) => {
     }
 };
 
+export const getQuestionPairGroups = async (req, res) => {
+    try {
+        const { exam_id } = req.query;
+
+        if (!exam_id) {
+            return res.status(400).json({ error: 'exam_id is required' });
+        }
+
+        // Fetch distinct pair_group values for the given exam_id
+        // Note: supabase-js doesn't have a direct .distinct() modifier nicely exposed for a single column 
+        // without some work, but .select('pair_group') usually returns all. 
+        // We can do client-side distinct or use a specific RPC if performance is key.
+        // For now, simpler approach: fetch all non-null pair_groups and unique them in JS.
+
+        const { data, error } = await supabase
+            .from('questions')
+            .select('pair_group')
+            .eq('exam_id', exam_id)
+            .neq('pair_group', null);
+
+        if (error) throw error;
+
+        // Filter unique values
+        const uniqueGroups = [...new Set(data.map(item => item.pair_group))];
+
+        res.status(200).json(uniqueGroups);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
 export const updateQuestion = async (req, res) => {
     try {
         const { id } = req.params;
-        const updates = req.body;
+        let { options, remove_image, ...updates } = req.body;
 
-        // Remove options from updates if present, options should be updated via separate endpoint or logic
-        delete updates.options;
+        // Parse options if it comes as a string (from FormData)
+        if (typeof options === 'string') {
+            try {
+                options = JSON.parse(options);
+            } catch (e) {
+                console.error('Failed to parse options:', e);
+                options = [];
+            }
+        }
+
+        // Handle Image Update
+        const file = req.file;
+        if (file) {
+            const filename = `question-${uuidv4()}-${file.originalname}`;
+            const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('image_question')
+                .upload(filename, file.buffer, {
+                    contentType: file.mimetype,
+                });
+
+            if (uploadError) throw uploadError;
+
+            const { data: publicUrlData } = supabase.storage
+                .from('image_question')
+                .getPublicUrl(filename);
+
+            updates.image_url = publicUrlData.publicUrl;
+        } else if (remove_image === 'true') {
+            updates.image_url = null;
+        }
 
         const { data, error } = await supabase
             .from('questions')
@@ -136,6 +196,32 @@ export const updateQuestion = async (req, res) => {
             .select();
 
         if (error) throw error;
+
+        // Handle options update if provided
+        if (options && Array.isArray(options)) {
+            // 1. Delete existing options
+            const { error: deleteError } = await supabase
+                .from('question_options')
+                .delete()
+                .eq('question_id', id);
+
+            if (deleteError) throw deleteError;
+
+            // 2. Insert new options
+            if (options.length > 0) {
+                const optionsWithId = options.map(opt => ({
+                    question_id: id,
+                    option_text: opt.option_text,
+                    is_correct: opt.is_correct || false
+                }));
+
+                const { error: insertError } = await supabase
+                    .from('question_options')
+                    .insert(optionsWithId);
+
+                if (insertError) throw insertError;
+            }
+        }
 
         res.status(200).json({ message: 'Question updated successfully', data: data[0] });
     } catch (error) {
