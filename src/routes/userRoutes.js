@@ -1,5 +1,5 @@
 import express from 'express';
-import { getAllUsers, createUser } from '../controllers/userController.js';
+import { getAllUsers, createUser, updateUser, deleteUser } from '../controllers/userController.js';
 import { authenticate, requireRole } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -12,5 +12,11 @@ router.get('/users', getAllUsers);
 
 // Create new user (Admin only)
 router.post('/users', requireRole('admin'), createUser);
+
+// Update user (Admin only)
+router.put('/users/:id', requireRole('admin'), updateUser);
+
+// Delete user (Admin only)
+router.delete('/users/:id', requireRole('admin'), deleteUser);
 
 export default router;
