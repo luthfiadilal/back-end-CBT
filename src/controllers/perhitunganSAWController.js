@@ -17,18 +17,13 @@ export const finishExam = async (req, res) => {
         const startTime = new Date(attemptData.started_at);
         const durationMinutes = Math.round((finishTime - startTime) / 60000); // Selisih menit
 
-        // Update exam_attempts dulu
-        await supabase
-            .from('exam_attempts')
-            .update({ finished_at: finishTime.toISOString(), duration_minutes: durationMinutes })
-            .eq('id', attempt_id);
-
 
         // --- STEP 2: HITUNG RAW DATA (MENTAH) ---
         const { data: answers } = await supabase
             .from('student_answers')
             .select(`
                 is_correct,
+                auto_score,
                 questions (
                     difficulty_level,
                     pair_group
@@ -44,6 +39,13 @@ export const finishExam = async (req, res) => {
         const skorKesulitan = answers.reduce((sum, ans) => {
             return ans.is_correct ? sum + (ans.questions.difficulty_level || 0) : sum;
         }, 0);
+
+        // B.2. Hitung Total Score dari auto_score
+        const total_score = answers.reduce((sum, ans) => {
+            return sum + (ans.auto_score || 0);
+        }, 0);
+
+        console.log(`Total Correct: ${jumlahBenar}, Total Score: ${total_score}, Skor Kesulitan: ${skorKesulitan}`);
 
         // C. Hitung Konsistensi (C3 Raw)
         const pairGroups = {};
@@ -64,6 +66,20 @@ export const finishExam = async (req, res) => {
         });
 
         // D. Waktu Pengerjaan (C4 Raw) -> durationMinutes sudah didapat di atas
+
+
+        // --- STEP 2.5: UPDATE EXAM_ATTEMPTS WITH TOTALS ---
+        await supabase
+            .from('exam_attempts')
+            .update({
+                finished_at: finishTime.toISOString(),
+                duration_minutes: durationMinutes,
+                total_correct: jumlahBenar,
+                total_score: total_score
+            })
+            .eq('id', attempt_id);
+
+        console.log(`Updated exam_attempts: finished_at, duration_minutes=${durationMinutes}, total_correct=${jumlahBenar}, total_score=${total_score}`);
 
 
         // --- STEP 3: SIMPAN HASIL MENTAH (Raw Data) ---
@@ -155,20 +171,94 @@ export const finishExam = async (req, res) => {
             statusLabel = 'Mujtahid';    // < 70
         }
 
-        // Simpan ke Database
-        await supabase.from('ranking_saw').insert([{
+        // Simpan ke Database (WITHOUT static ranking)
+        console.log('Inserting to ranking_saw:', {
             exam_id, attempt_id, user_uid, siswa_id: null,
             nilai_preferensi: nilai_preferensi,
             nilai_konversi: nilaiKonversi,
-            ranking: 0,
-            status: statusLabel
-        }]);
+            status: statusLabel,
+            ranking: 0
+        });
+
+        const { data: rankingInsertData, error: rankingInsertError } = await supabase
+            .from('ranking_saw')
+            .insert([{
+                exam_id,
+                attempt_id,
+                user_uid,
+                siswa_id: null,
+                nilai_preferensi: nilai_preferensi,
+                nilai_konversi: nilaiKonversi,
+                status: statusLabel,
+                ranking: 0 // Placeholder, calculated dynamically when querying
+            }])
+            .select();
+
+        if (rankingInsertError) {
+            console.error('ERROR inserting to ranking_saw:', rankingInsertError);
+            throw rankingInsertError;
+        }
+
+        console.log('Successfully inserted to ranking_saw:', rankingInsertData);
+
+        // Fetch detailed answers for display
+        const { data: detailedAnswers } = await supabase
+            .from('student_answers')
+            .select(`
+                id,
+                is_correct,
+                auto_score,
+                selected_option_id,
+                questions (
+                    id,
+                    question_text,
+                    difficulty_level,
+                    max_point,
+                    pair_group,
+                    question_options (
+                        id,
+                        option_text,
+                        is_correct
+                    )
+                )
+            `)
+            .eq('attempt_id', attempt_id);
 
         return res.status(200).json({
             message: "Ujian Selesai",
-            score_saw: nilai_preferensi,
-            final_score: nilaiKonversi,
-            status: statusLabel
+            attempt_id: attempt_id,
+
+            // Basic totals
+            total_questions: totalSoal,
+            total_correct: jumlahBenar,
+            total_score: total_score,
+            duration_minutes: durationMinutes,
+
+            // Raw SAW data (C1-C4)
+            raw_data: {
+                jumlah_benar: jumlahBenar,
+                skor_kesulitan: skorKesulitan,
+                pasangan_benar: pasanganBenar,
+                waktu_menit: durationMinutes
+            },
+
+            // SAW crips values (1-5)
+            saw_values: {
+                c1: c1_val,
+                c2: c2_val,
+                c3: c3_val,
+                c4: c4_val
+            },
+
+            // Final SAW results
+            saw_result: {
+                nilai_preferensi: nilai_preferensi,
+                nilai_konversi: nilaiKonversi,
+                status: statusLabel
+            },
+
+            // Detailed answers
+            answers: detailedAnswers
         });
 
     } catch (err) {
@@ -183,98 +273,140 @@ export const getExamRanking = async (req, res) => {
     const { exam_id } = req.params;
 
     try {
-        // Ambil semua hasil ranking untuk exam tertentu
-        const { data: rankings, error } = await supabase
+        console.log('=== GET EXAM RANKING REQUEST ===');
+        console.log('exam_id:', exam_id);
+
+        // Fetch all ranking data for this exam (without nested siswa/teacher/admin)
+        const { data: rankingData, error } = await supabase
             .from('ranking_saw')
-            .select(`
-                id,
-                user_uid,
-                nilai_preferensi,
-                nilai_konversi,
-                status,
-                created_at,
-                attempt_id,
-                exam_attempts (
-                    duration_minutes,
-                    started_at,
-                    finished_at
-                )
-            `)
+            .select('*')
             .eq('exam_id', exam_id)
-            .order('nilai_konversi', { ascending: false });
+            .order('nilai_konversi', { ascending: false }); // Sort by nilai_konversi DESC
 
         if (error) {
+            console.error('Supabase error:', error);
             throw error;
         }
 
-        if (!rankings || rankings.length === 0) {
-            return res.status(404).json({ message: 'Belum ada data ranking untuk exam ini' });
+        console.log('Fetched ranking data count:', rankingData?.length);
+
+        if (!rankingData || rankingData.length === 0) {
+            return res.status(200).json({
+                message: 'Belum ada data ranking untuk ujian ini',
+                rankings: []
+            });
         }
 
-        // Ambil detail user untuk setiap ranking
-        const enrichedRankings = await Promise.all(
-            rankings.map(async (ranking, index) => {
-                // Get user role
-                const { data: userData } = await supabase
-                    .from('app_users')
-                    .select('role')
-                    .eq('uid', ranking.user_uid)
-                    .single();
+        // Fetch user details for each ranking
+        const rankedDataPromises = rankingData.map(async (item, index) => {
+            let userName = 'Unknown';
+            let userType = 'unknown';
+            let userDetails = {};
+            let email = null;
 
-                let userDetails = null;
+            // Get user role from app_users
+            const { data: userData } = await supabase
+                .from('app_users')
+                .select('role, email')
+                .eq('uid', item.user_uid)
+                .single();
 
-                // Get user details based on role
-                if (userData) {
-                    if (userData.role === 'siswa') {
-                        const { data: siswaData } = await supabase
-                            .from('siswa')
-                            .select('nama, kelas, nis, image_url')
-                            .eq('user_uid', ranking.user_uid)
-                            .single();
-                        userDetails = siswaData;
-                    } else if (userData.role === 'teacher') {
-                        const { data: teacherData } = await supabase
-                            .from('teacher')
-                            .select('nama, nip, image_url')
-                            .eq('user_uid', ranking.user_uid)
-                            .single();
-                        userDetails = teacherData;
-                    } else if (userData.role === 'admin') {
-                        const { data: adminData } = await supabase
-                            .from('admin')
-                            .select('nama, image_url')
-                            .eq('user_uid', ranking.user_uid)
-                            .single();
-                        userDetails = adminData;
+            if (userData) {
+                email = userData.email;
+
+                // Fetch details based on role
+                if (userData.role === 'siswa') {
+                    const { data: siswaData } = await supabase
+                        .from('siswa')
+                        .select('nama, nis, kelas')
+                        .eq('user_uid', item.user_uid)
+                        .single();
+
+                    if (siswaData) {
+                        userName = siswaData.nama;
+                        userType = 'siswa';
+                        userDetails = {
+                            nis: siswaData.nis,
+                            kelas: siswaData.kelas
+                        };
+                    }
+                } else if (userData.role === 'teacher') {
+                    const { data: teacherData } = await supabase
+                        .from('teacher')
+                        .select('nama, nip')
+                        .eq('user_uid', item.user_uid)
+                        .single();
+
+                    if (teacherData) {
+                        userName = teacherData.nama;
+                        userType = 'teacher';
+                        userDetails = {
+                            nip: teacherData.nip
+                        };
+                    }
+                } else if (userData.role === 'admin') {
+                    const { data: adminData } = await supabase
+                        .from('admin')
+                        .select('nama')
+                        .eq('user_uid', item.user_uid)
+                        .single();
+
+                    if (adminData) {
+                        userName = adminData.nama;
+                        userType = 'admin';
                     }
                 }
+            }
 
-                return {
-                    ranking: index + 1, // Ranking berdasarkan urutan (1, 2, 3, dst)
-                    user_uid: ranking.user_uid,
-                    nama: userDetails?.nama || 'Unknown',
-                    kelas: userDetails?.kelas || null,
-                    nis: userDetails?.nis || null,
-                    image_url: userDetails?.image_url || null,
-                    nilai_preferensi: ranking.nilai_preferensi,
-                    nilai_konversi: ranking.nilai_konversi,
-                    status: ranking.status,
-                    duration_minutes: ranking.exam_attempts?.duration_minutes || 0,
-                    finished_at: ranking.exam_attempts?.finished_at || null,
-                    created_at: ranking.created_at
-                };
-            })
-        );
+            // Calculate dynamic ranking
+            let currentRank = index + 1;
+
+            // Check if same score as previous
+            if (index > 0 && rankingData[index - 1].nilai_konversi === item.nilai_konversi) {
+                // Find the rank of previous item with same score
+                currentRank = index; // Will be adjusted in post-processing
+            }
+
+            return {
+                ranking: currentRank,
+                user_uid: item.user_uid,
+                user_name: userName,
+                user_type: userType,
+                user_details: userDetails,
+                email: email,
+                nilai_preferensi: item.nilai_preferensi,
+                nilai_konversi: item.nilai_konversi,
+                status: item.status,
+                created_at: item.created_at,
+                attempt_id: item.attempt_id
+            };
+        });
+
+        const rankedData = await Promise.all(rankedDataPromises);
+
+        // Fix ranking for tie scores
+        let currentRank = 1;
+        let previousScore = null;
+
+        rankedData.forEach((item, index) => {
+            if (previousScore === null || item.nilai_konversi < previousScore) {
+                currentRank = index + 1;
+            }
+            item.ranking = currentRank;
+            previousScore = item.nilai_konversi;
+        });
+
+        console.log(`Processed ${rankedData.length} ranking entries`);
 
         return res.status(200).json({
-            message: 'Ranking berhasil diambil',
-            exam_id: parseInt(exam_id),
-            total_participants: enrichedRankings.length,
-            rankings: enrichedRankings
+            message: 'Ranking data retrieved successfully',
+            total_participants: rankedData.length,
+            rankings: rankedData
         });
 
     } catch (err) {
-        console.error(err);
+        console.error('=== GET EXAM RANKING ERROR ===');
+        console.error('Error:', err);
         return res.status(500).json({ error: err.message });
     }
-}
+};
