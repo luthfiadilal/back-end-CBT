@@ -22,6 +22,8 @@ import examRoutes from './src/routes/examRoutes.js';
 import examAttemptRoutes from './src/routes/examAttemptRoutes.js';
 import questionRoutes from './src/routes/questionRoutes.js';
 import questionOptionRoutes from './src/routes/questionOptionRoutes.js';
+import perhitunganSAWRoutes from './src/routes/perhitunganSAWRoutes.js';
+import examStudentRoutes from './src/routes/examStudentRoutes.js';
 
 app.use('/cbt', authRoutes);
 app.use('/cbt', userRoutes);
@@ -31,6 +33,8 @@ app.use('/cbt', examRoutes);
 app.use('/cbt', examAttemptRoutes);
 app.use('/cbt', questionRoutes);
 app.use('/cbt', questionOptionRoutes);
+app.use('/cbt', perhitunganSAWRoutes);
+app.use('/cbt', examStudentRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

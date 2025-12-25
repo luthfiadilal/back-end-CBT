@@ -8,7 +8,6 @@ export const finishExam = async (req, res) => {
 
     try {
         // --- STEP 1: AMBIL DATA ATTEMPT & JAWABAN ---
-        // Kita butuh data waktu mulai untuk hitung durasi
         const { data: attemptData } = await supabase
             .from('exam_attempts')
             .select('started_at')
@@ -26,8 +25,6 @@ export const finishExam = async (req, res) => {
 
 
         // --- STEP 2: HITUNG RAW DATA (MENTAH) ---
-
-        // Ambil semua jawaban siswa join dengan pertanyaan untuk tahu difficulty & pair group
         const { data: answers } = await supabase
             .from('student_answers')
             .select(`
@@ -41,42 +38,37 @@ export const finishExam = async (req, res) => {
 
         // A. Hitung Jumlah Benar (C1 Raw)
         const jumlahBenar = answers.filter(a => a.is_correct).length;
-        const totalSoal = answers.length; // Asumsi siswa jawab semua
-        const persentaseBenar = (jumlahBenar / totalSoal) * 100;
+        const totalSoal = answers.length;
 
         // B. Hitung Total Skor Kesulitan (C2 Raw)
-        // Hanya jumlahkan difficulty_level jika jawabannya BENAR
         const skorKesulitan = answers.reduce((sum, ans) => {
             return ans.is_correct ? sum + (ans.questions.difficulty_level || 0) : sum;
         }, 0);
 
         // C. Hitung Konsistensi (C3 Raw)
-        // Kelompokkan jawaban berdasarkan pair_group
         const pairGroups = {};
         answers.forEach(ans => {
             const group = ans.questions.pair_group;
-            if (group) { // Jika soal ini masuk grup konsistensi
+            if (group) {
                 if (!pairGroups[group]) pairGroups[group] = [];
                 pairGroups[group].push(ans.is_correct);
             }
         });
 
-        // Hitung berapa grup yang "Full Benar"
         let pasanganBenar = 0;
         Object.keys(pairGroups).forEach(group => {
             const groupAnswers = pairGroups[group];
-            // Jika semua jawaban dalam grup ini true, maka konsisten benar
             if (groupAnswers.every(val => val === true)) {
                 pasanganBenar++;
             }
         });
 
-        // D. Waktu Pengerjaan (C4 Raw) -> durationMinutes
+        // D. Waktu Pengerjaan (C4 Raw) -> durationMinutes sudah didapat di atas
 
 
         // --- STEP 3: SIMPAN HASIL MENTAH (Raw Data) ---
         await supabase.from('hasil_cbt').insert([{
-            exam_id, attempt_id, user_uid, siswa_id: null, // Isi siswa_id jika ada relasi
+            exam_id, attempt_id, user_uid, siswa_id: null,
             jumlah_benar: jumlahBenar,
             skor_kesulitan: skorKesulitan,
             pasangan_benar: pasanganBenar,
@@ -85,41 +77,41 @@ export const finishExam = async (req, res) => {
 
 
         // --- STEP 4: KONVERSI KE NILAI CRIPS (1-5) ---
-        // Logic ini mencocokkan nilai mentah ke range tabel referensi
-
         // 4a. C1 (Ketepatan)
-        // Query tabel ketepatan_jawaban untuk cari range
-        // Contoh logic manual (Sebaiknya query DB, tapi ini simulasi logic)
-        // Anda bisa buat helper function untuk fetch range dari DB
         let c1_val = 1;
-        // Misal fetch dari DB: Select * from ketepatan_jawaban
-        // Loop result, if (jumlahBenar >= row.min_benar && jumlahBenar <= row.max_benar) c1_val = row.bobot
-        // DISINI SAYA HARDCODE CONTOH LOGICNYA (Ganti dengan Query DB Real)
         const { data: refC1 } = await supabase.from('ketepatan_jawaban').select('*');
-        refC1.forEach(ref => {
-            if (jumlahBenar >= ref.min_benar && jumlahBenar <= ref.max_benar) c1_val = ref.bobot;
-        });
+        if (refC1) {
+            refC1.forEach(ref => {
+                if (jumlahBenar >= ref.min_benar && jumlahBenar <= ref.max_benar) c1_val = ref.bobot;
+            });
+        }
 
         // 4b. C2 (Kesulitan)
         let c2_val = 1;
         const { data: refC2 } = await supabase.from('tingkat_kesulitan').select('*');
-        refC2.forEach(ref => {
-            if (skorKesulitan >= ref.min_skor && skorKesulitan <= ref.max_skor) c2_val = ref.bobot;
-        });
+        if (refC2) {
+            refC2.forEach(ref => {
+                if (skorKesulitan >= ref.min_skor && skorKesulitan <= ref.max_skor) c2_val = ref.bobot;
+            });
+        }
 
         // 4c. C3 (Konsistensi)
-        let c3_val = 0; // Default 0 jika tidak konsisten
+        let c3_val = 0;
         const { data: refC3 } = await supabase.from('konsistensi_jawaban').select('*');
-        refC3.forEach(ref => {
-            if (pasanganBenar >= ref.min_pasangan && pasanganBenar <= ref.max_pasangan) c3_val = ref.bobot;
-        });
+        if (refC3) {
+            refC3.forEach(ref => {
+                if (pasanganBenar >= ref.min_pasangan && pasanganBenar <= ref.max_pasangan) c3_val = ref.bobot;
+            });
+        }
 
         // 4d. C4 (Waktu - COST)
         let c4_val = 1;
         const { data: refC4 } = await supabase.from('waktu_pengerjaan').select('*');
-        refC4.forEach(ref => {
-            if (durationMinutes >= ref.min_menit && durationMinutes <= ref.max_menit) c4_val = ref.bobot;
-        });
+        if (refC4) {
+            refC4.forEach(ref => {
+                if (durationMinutes >= ref.min_menit && durationMinutes <= ref.max_menit) c4_val = ref.bobot;
+            });
+        }
 
 
         // --- STEP 5: SIMPAN NILAI SAW (C1-C4) ---
@@ -131,48 +123,154 @@ export const finishExam = async (req, res) => {
             c4: c4_val
         }]);
 
-        // --- STEP 6: HITUNG NILAI AKHIR (RANKING) ---
-        // SAW Formula:
-        // Nilai Akhir = (C1/MaxC1 * W1) + (C2/MaxC2 * W2) + (C3/MaxC3 * W3) + (MinC4/C4 * W4)
-        // Karena normalisasi biasanya butuh data SELURUH siswa, 
-        // untuk Realtime CBT biasanya kita pakai "Fixed Normalization" (Max Nilai Kriteria)
 
-        // Bobot Kriteria (Dari tabel Kriteria)
-        // C1: 0.4, C2: 0.3, C3: 0.2, C4: 0.1
+        // --- STEP 6: HITUNG NILAI AKHIR & STATUS (RANKING) ---
+
+        // Bobot Kriteria
         const W1 = 0.4;
         const W2 = 0.3;
         const W3 = 0.2;
         const W4 = 0.1;
 
-        // Max Value (Biasanya 5 karena skala 1-5)
+        // Max Value Skala
         const MaxScale = 5;
 
-        // Normalisasi
-        const norm_c1 = c1_val / MaxScale; // Benefit
-        const norm_c2 = c2_val / MaxScale; // Benefit
-        const norm_c3 = c3_val / MaxScale; // Benefit
-        const norm_c4 = (c4_val === 0) ? 0 : (1 / c4_val); // Cost (Min/Val). 
-        // *Catatan COST:* Rumus Cost SAW biasanya (Min_Value_Data / Current_Value).
-        // Jika pakai skala 1-5, dan nilai terbaik (paling cepat) adalah bobot 1 (Sangat Cepat), 
-        // Maka logic tabel Anda terbalik untuk Cost. 
-        // Di tabel Anda: Sangat Cepat = Bobot 1, Sangat Lama = Bobot 5.
-        // Untuk COST, makin kecil nilainya makin bagus. 
-        // Jadi normalisasinya: MinScale (1) / c4_val. 
+        // Normalisasi & SAW Calculation
+        const norm_c1 = c1_val / MaxScale;
+        const norm_c2 = c2_val / MaxScale;
+        const norm_c3 = c3_val / MaxScale;
+        const norm_c4 = (c4_val === 0) ? 0 : (1 / c4_val); // Cost
 
-        const nilai_preferensi = (norm_c1 * W1) + (norm_c2 * W2) + (norm_c3 * W3) + ((1 / c4_val) * W4); // Contoh Cost logic
+        const nilai_preferensi = (norm_c1 * W1) + (norm_c2 * W2) + (norm_c3 * W3) + (norm_c4 * W4);
 
-        // Simpan Ranking / Skor Akhir
+        // --- LOGIC BARU: Konversi & Status ---
+        const nilaiKonversi = nilai_preferensi * 100; // Skala 0-100
+        let statusLabel = '';
+
+        if (nilaiKonversi >= 85) {
+            statusLabel = 'Mutqin';      // 85 - 100
+        } else if (nilaiKonversi >= 70) {
+            statusLabel = 'Fasih';       // 70 - 84
+        } else {
+            statusLabel = 'Mujtahid';    // < 70
+        }
+
+        // Simpan ke Database
         await supabase.from('ranking_saw').insert([{
             exam_id, attempt_id, user_uid, siswa_id: null,
             nilai_preferensi: nilai_preferensi,
-            nilai_konversi: nilai_preferensi * 100, // Skala 100
-            ranking: 0, // Nanti diupdate batch job atau trigger
-            status: nilai_preferensi > 0.7 ? 'Lulus' : 'Remedial' // Contoh logic kelulusan
+            nilai_konversi: nilaiKonversi,
+            ranking: 0,
+            status: statusLabel
         }]);
 
         return res.status(200).json({
             message: "Ujian Selesai",
-            score: nilai_preferensi
+            score_saw: nilai_preferensi,
+            final_score: nilaiKonversi,
+            status: statusLabel
+        });
+
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ error: err.message });
+    }
+}
+
+
+// GET /api/student/exam/:exam_id/ranking
+export const getExamRanking = async (req, res) => {
+    const { exam_id } = req.params;
+
+    try {
+        // Ambil semua hasil ranking untuk exam tertentu
+        const { data: rankings, error } = await supabase
+            .from('ranking_saw')
+            .select(`
+                id,
+                user_uid,
+                nilai_preferensi,
+                nilai_konversi,
+                status,
+                created_at,
+                attempt_id,
+                exam_attempts (
+                    duration_minutes,
+                    started_at,
+                    finished_at
+                )
+            `)
+            .eq('exam_id', exam_id)
+            .order('nilai_konversi', { ascending: false });
+
+        if (error) {
+            throw error;
+        }
+
+        if (!rankings || rankings.length === 0) {
+            return res.status(404).json({ message: 'Belum ada data ranking untuk exam ini' });
+        }
+
+        // Ambil detail user untuk setiap ranking
+        const enrichedRankings = await Promise.all(
+            rankings.map(async (ranking, index) => {
+                // Get user role
+                const { data: userData } = await supabase
+                    .from('app_users')
+                    .select('role')
+                    .eq('uid', ranking.user_uid)
+                    .single();
+
+                let userDetails = null;
+
+                // Get user details based on role
+                if (userData) {
+                    if (userData.role === 'siswa') {
+                        const { data: siswaData } = await supabase
+                            .from('siswa')
+                            .select('nama, kelas, nis, image_url')
+                            .eq('user_uid', ranking.user_uid)
+                            .single();
+                        userDetails = siswaData;
+                    } else if (userData.role === 'teacher') {
+                        const { data: teacherData } = await supabase
+                            .from('teacher')
+                            .select('nama, nip, image_url')
+                            .eq('user_uid', ranking.user_uid)
+                            .single();
+                        userDetails = teacherData;
+                    } else if (userData.role === 'admin') {
+                        const { data: adminData } = await supabase
+                            .from('admin')
+                            .select('nama, image_url')
+                            .eq('user_uid', ranking.user_uid)
+                            .single();
+                        userDetails = adminData;
+                    }
+                }
+
+                return {
+                    ranking: index + 1, // Ranking berdasarkan urutan (1, 2, 3, dst)
+                    user_uid: ranking.user_uid,
+                    nama: userDetails?.nama || 'Unknown',
+                    kelas: userDetails?.kelas || null,
+                    nis: userDetails?.nis || null,
+                    image_url: userDetails?.image_url || null,
+                    nilai_preferensi: ranking.nilai_preferensi,
+                    nilai_konversi: ranking.nilai_konversi,
+                    status: ranking.status,
+                    duration_minutes: ranking.exam_attempts?.duration_minutes || 0,
+                    finished_at: ranking.exam_attempts?.finished_at || null,
+                    created_at: ranking.created_at
+                };
+            })
+        );
+
+        return res.status(200).json({
+            message: 'Ranking berhasil diambil',
+            exam_id: parseInt(exam_id),
+            total_participants: enrichedRankings.length,
+            rankings: enrichedRankings
         });
 
     } catch (err) {

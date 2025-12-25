@@ -4,10 +4,25 @@ import supabase from '../config/supabase.js';
 export const startExam = async (req, res) => {
     const { user_uid, exam_id } = req.body;
 
+    console.log('=== START EXAM REQUEST ===');
+    console.log('Request body:', req.body);
+    console.log('user_uid:', user_uid);
+    console.log('exam_id:', exam_id);
+
     try {
+        // Validate input
+        if (!user_uid || !exam_id) {
+            console.error('Missing required fields:', { user_uid, exam_id });
+            return res.status(400).json({
+                error: 'Missing required fields',
+                details: { user_uid: !!user_uid, exam_id: !!exam_id }
+            });
+        }
+
         // 1. Cek apakah user sudah pernah mulai (optional, tergantung rules)
 
         // 2. Insert ke exam_attempts
+        console.log('Attempting to insert exam_attempts...');
         const { data, error } = await supabase
             .from('exam_attempts')
             .insert([{
@@ -20,7 +35,12 @@ export const startExam = async (req, res) => {
             .select('id') // Ambil ID attempt yang baru dibuat
             .single();
 
-        if (error) throw error;
+        if (error) {
+            console.error('Supabase error:', error);
+            throw error;
+        }
+
+        console.log('Exam attempt created successfully:', data);
 
         return res.status(200).json({
             message: "Ujian dimulai",
@@ -28,7 +48,14 @@ export const startExam = async (req, res) => {
         });
 
     } catch (err) {
-        return res.status(500).json({ error: err.message });
+        console.error('=== START EXAM ERROR ===');
+        console.error('Error message:', err.message);
+        console.error('Error details:', err);
+        console.error('Stack trace:', err.stack);
+        return res.status(500).json({
+            error: err.message,
+            details: process.env.NODE_ENV === 'development' ? err : undefined
+        });
     }
 }
 
@@ -36,29 +63,38 @@ export const startExam = async (req, res) => {
 export const getExamQuestions = async (req, res) => {
     const { exam_id } = req.params;
 
+    console.log('=== GET EXAM QUESTIONS REQUEST ===');
+    console.log('exam_id:', exam_id);
+
     try {
-        // Ambil Pertanyaan beserta Opsinya
+        // Ambil Pertanyaan beserta Opsinya (tanpa is_correct untuk keamanan)
         const { data, error } = await supabase
             .from('questions')
             .select(`
                 id, 
                 question_text, 
                 question_type, 
-                difficulty_level, -- Untuk info frontend jika perlu, tapi jgn dipakai hitung skor di FE
+                difficulty_level,
                 image_url,
                 question_options (
                     id,
                     option_text
-                    -- JANGAN SELECT is_correct DI SINI
                 )
             `)
             .eq('exam_id', exam_id);
 
-        if (error) throw error;
+        if (error) {
+            console.error('Supabase error in getExamQuestions:', error);
+            throw error;
+        }
+
+        console.log(`Found ${data?.length || 0} questions for exam ${exam_id}`);
 
         return res.status(200).json({ questions: data });
 
     } catch (err) {
+        console.error('=== GET EXAM QUESTIONS ERROR ===');
+        console.error('Error:', err);
         return res.status(500).json({ error: err.message });
     }
 }
@@ -66,6 +102,9 @@ export const getExamQuestions = async (req, res) => {
 // POST /api/student/exam/answer
 export const submitAnswer = async (req, res) => {
     const { attempt_id, question_id, selected_option_id, answer_text } = req.body;
+
+    console.log('=== SUBMIT ANSWER REQUEST ===');
+    console.log('Request body:', req.body);
 
     try {
         // 1. Cek Kunci Jawaban (Backend Validation)
@@ -83,6 +122,8 @@ export const submitAnswer = async (req, res) => {
             isCorrect = true;
         }
 
+        console.log(`Answer is ${isCorrect ? 'correct' : 'incorrect'}`);
+
         // 2. Upsert (Insert atau Update jika user ganti jawaban)
         const { error } = await supabase
             .from('student_answers')
@@ -95,11 +136,21 @@ export const submitAnswer = async (req, res) => {
                 answered_at: new Date().toISOString()
             }, { onConflict: 'attempt_id, question_id' }); // Pastikan 1 soal 1 jawaban per attempt
 
-        if (error) throw error;
+        if (error) {
+            console.error('Supabase error in submitAnswer:', error);
+            throw error;
+        }
 
-        return res.status(200).json({ message: "Jawaban tersimpan" });
+        console.log('Answer saved successfully');
+
+        return res.status(200).json({
+            message: "Jawaban tersimpan",
+            is_correct: isCorrect
+        });
 
     } catch (err) {
+        console.error('=== SUBMIT ANSWER ERROR ===');
+        console.error('Error:', err);
         return res.status(500).json({ error: err.message });
     }
 }
