@@ -412,3 +412,75 @@ export const deleteUser = async (req, res) => {
         });
     }
 };
+
+/**
+ * Get all students with their exam completion status
+ * GET /cbt/users/students/exam-status?exam_id=<id>
+ */
+export const getStudentsExamStatus = async (req, res) => {
+    try {
+        const { exam_id } = req.query;
+
+        if (!exam_id) {
+            return res.status(400).json({
+                error: 'Validation error',
+                message: 'exam_id query parameter is required'
+            });
+        }
+
+        // Get all students from siswa table
+        const { data: students, error: studentsError } = await supabase
+            .from('siswa')
+            .select('user_uid, nama, nis, kelas, email, image_url')
+            .order('nama', { ascending: true });
+
+        if (studentsError) throw studentsError;
+
+        // Get all exam attempts for this specific exam
+        const { data: attempts, error: attemptsError } = await supabase
+            .from('exam_attempts')
+            .select('user_uid, id, started_at, finished_at, total_score, total_correct')
+            .eq('exam_id', exam_id);
+
+        if (attemptsError) throw attemptsError;
+
+        // Create a map of attempts by user_uid for quick lookup
+        const attemptsMap = new Map();
+        attempts?.forEach(attempt => {
+            attemptsMap.set(attempt.user_uid, attempt);
+        });
+
+        // Combine student data with exam attempt status
+        const results = students.map(student => {
+            const attempt = attemptsMap.get(student.user_uid);
+
+            return {
+                user_uid: student.user_uid,
+                nama: student.nama,
+                nis: student.nis,
+                kelas: student.kelas,
+                email: student.email,
+                image_url: student.image_url,
+                exam_status: attempt?.finished_at ? 'Sudah Mengerjakan' : 'Belum Mengerjakan',
+                attempt_id: attempt?.id || null,
+                started_at: attempt?.started_at || null,
+                finished_at: attempt?.finished_at || null,
+                total_score: attempt?.total_score || 0,
+                total_correct: attempt?.total_correct || 0
+            };
+        });
+
+        console.log('✅ Get students exam status response sent:', results.length, 'students for exam', exam_id);
+        res.status(200).json({
+            success: true,
+            data: results
+        });
+
+    } catch (error) {
+        console.error('Get students exam status error:', error);
+        res.status(500).json({
+            error: 'Internal server error',
+            message: error.message
+        });
+    }
+};

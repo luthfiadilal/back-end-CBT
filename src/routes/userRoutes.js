@@ -1,5 +1,5 @@
 import express from 'express';
-import { getAllUsers, createUser, updateUser, deleteUser } from '../controllers/userController.js';
+import { getAllUsers, createUser, updateUser, deleteUser, getStudentsExamStatus } from '../controllers/userController.js';
 import { authenticate, requireRole } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -9,6 +9,9 @@ router.use(authenticate);
 
 // Get all users (except current)
 router.get('/users', getAllUsers);
+
+// Get students with exam status (Teacher access)
+router.get('/users/students/exam-status', getStudentsExamStatus);
 
 // Create new user (Admin only)
 router.post('/users', requireRole('admin'), createUser);
