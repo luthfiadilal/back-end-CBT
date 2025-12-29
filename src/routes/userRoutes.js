@@ -13,13 +13,13 @@ router.get('/users', getAllUsers);
 // Get students with exam status (Teacher access)
 router.get('/users/students/exam-status', getStudentsExamStatus);
 
-// Create new user (Admin only)
-router.post('/users', requireRole('admin'), createUser);
+// Create new user (Admin and Teacher)
+router.post('/users', requireRole('admin', 'teacher'), createUser);
 
-// Update user (Admin only)
-router.put('/users/:id', requireRole('admin'), updateUser);
+// Update user (Admin and Teacher)
+router.put('/users/:id', requireRole('admin', 'teacher'), updateUser);
 
-// Delete user (Admin only)
-router.delete('/users/:id', requireRole('admin'), deleteUser);
+// Delete user (Admin and Teacher)
+router.delete('/users/:id', requireRole('admin', 'teacher'), deleteUser);
 
 export default router;

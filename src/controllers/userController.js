@@ -1,4 +1,4 @@
-import supabase from '../config/supabase.js';
+import supabase, { supabaseAdmin } from '../config/supabase.js';
 
 /**
  * Get all users excluding the current user
@@ -33,18 +33,20 @@ export const getAllUsers = async (req, res) => {
 
         if (usersError) throw usersError;
 
-        // Get all profiles from respective tables
+        // Get all profiles from respective tables using admin client (to bypass RLS)
         // We can do this safely by fetching all rows from each table and mapping in memory
         // if the user count is not huge. 
         // For production with millions of users this is bad. But for CBT app likely fine.
 
-        const { data: admins } = await supabase.from('admin').select('*');
-        const { data: teachers } = await supabase.from('teacher').select('*');
-        const { data: students } = await supabase.from('siswa').select('*');
+        const { data: admins, error: adminError } = await supabaseAdmin.from('admin').select('*');
+        const { data: teachers, error: teacherError } = await supabaseAdmin.from('teacher').select('*');
+        const { data: students, error: studentError } = await supabaseAdmin.from('siswa').select('*');
+
 
         const adminMap = new Map(admins?.map(a => [a.user_uid, a]));
         const teacherMap = new Map(teachers?.map(t => [t.user_uid, t]));
         const studentMap = new Map(students?.map(s => [s.user_uid, s]));
+
 
         const results = users.map(user => {
             let details = {};
@@ -52,12 +54,14 @@ export const getAllUsers = async (req, res) => {
             else if (user.role === 'teacher') details = teacherMap.get(user.uid) || {};
             else if (user.role === 'siswa') details = studentMap.get(user.uid) || {};
 
-            return {
-                uid: user.uid,
-                email: user.email,
-                role: user.role,
-                ...details // Spread all profile details (nama, nis, kelas, etc)
+            const result = {
+                ...details, // Spread all profile details first
+                uid: user.uid, // Then add/override with app_users data
+                role: user.role
             };
+
+
+            return result;
         });
 
         console.log('✅ Get all users response sent:', results.length, 'users');
@@ -76,12 +80,12 @@ export const getAllUsers = async (req, res) => {
 };
 
 /**
- * Create new user (Admin only)
+ * Create new user (Admin and Teacher)
  * POST /cbt/users
  */
 export const createUser = async (req, res) => {
     try {
-        const { role, nama, email, password, nis, tanggal_lahir, kelas, alamat, nip } = req.body;
+        const { role, nama, email, password, tanggal_lahir, kelas, alamat } = req.body;
         // Image upload is handled separately or can be added if needed, but keeping simple for now as per "form dynamic" request usually implies text fields first. 
         // If image is needed, we can add it, but usually admin creating user might skip image or upload later. 
         // The auth controller handles image, let's include image handling if we can, 
@@ -106,17 +110,10 @@ export const createUser = async (req, res) => {
         }
 
         // Role-specific validation
-        if (role === 'siswa' && (!nis || !tanggal_lahir || !kelas || !alamat)) {
+        if (role === 'siswa' && (!tanggal_lahir || !kelas || !alamat)) {
             return res.status(400).json({
                 error: 'Validation error',
-                message: 'NIS, tanggal lahir, kelas, and alamat are required for siswa'
-            });
-        }
-
-        if (role === 'teacher' && !nip) {
-            return res.status(400).json({
-                error: 'Validation error',
-                message: 'NIP is required for teacher'
+                message: 'Tanggal lahir, kelas, and alamat are required for siswa'
             });
         }
 
@@ -134,15 +131,13 @@ export const createUser = async (req, res) => {
             });
         }
 
-        // Create user in Supabase Auth
-        // Note: When admin creates a user, we might want to auto-confirm or not send email. 
-        // For simplicity, we use the same flow.
-        const { data: authData, error: authError } = await supabase.auth.signUp({
+        // Create user in Supabase Auth using admin client
+        // When admin/teacher creates a user, we use the admin API
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email: email,
             password: password,
-            options: {
-                data: { role: role } // Optional metadata
-            }
+            email_confirm: true, // Auto-confirm email
+            user_metadata: { role: role }
         });
 
         if (authError || !authData.user) {
@@ -176,7 +171,7 @@ export const createUser = async (req, res) => {
             }
 
             // Insert into app_users table
-            const { error: appUserError } = await supabase
+            const { error: appUserError } = await supabaseAdmin
                 .from('app_users')
                 .insert({
                     uid: userId,
@@ -191,7 +186,7 @@ export const createUser = async (req, res) => {
 
             switch (role) {
                 case 'siswa':
-                    const { error: siswaError } = await supabase
+                    const { error: siswaError } = await supabaseAdmin
                         .from('siswa')
                         .insert({
                             user_uid: userId,
@@ -199,7 +194,6 @@ export const createUser = async (req, res) => {
                             tanggal_lahir,
                             alamat,
                             kelas,
-                            nis,
                             email,
                             image_url: imageUrl
                         });
@@ -207,12 +201,11 @@ export const createUser = async (req, res) => {
                     break;
 
                 case 'teacher':
-                    const { error: teacherError } = await supabase
+                    const { error: teacherError } = await supabaseAdmin
                         .from('teacher')
                         .insert({
                             user_uid: userId,
                             nama,
-                            nip,
                             email,
                             image_url: imageUrl
                         });
@@ -220,7 +213,7 @@ export const createUser = async (req, res) => {
                     break;
 
                 case 'admin':
-                    const { error: adminError } = await supabase
+                    const { error: adminError } = await supabaseAdmin
                         .from('admin')
                         .insert({
                             user_uid: userId,
@@ -244,8 +237,8 @@ export const createUser = async (req, res) => {
             console.log('✅ Create user response sent:', email, role);
 
         } catch (dbError) {
-            // Rollback auth user
-            await supabase.auth.admin.deleteUser(userId);
+            // Rollback auth user using admin client
+            await supabaseAdmin.auth.admin.deleteUser(userId);
             throw dbError;
         }
 
@@ -259,13 +252,13 @@ export const createUser = async (req, res) => {
 };
 
 /**
- * Update user (Admin only)
+ * Update user (Admin and Teacher)
  * PUT /cbt/users/:id
  */
 export const updateUser = async (req, res) => {
     try {
         const { id } = req.params;
-        const { role, nama, email, password, nis, tanggal_lahir, kelas, alamat, nip, image } = req.body;
+        const { role, nama, email, password, tanggal_lahir, kelas, alamat, image } = req.body;
 
         // 1. Update Supabase Auth if email or password changed
         const authUpdates = {};
@@ -273,7 +266,7 @@ export const updateUser = async (req, res) => {
         if (password) authUpdates.password = password;
 
         if (Object.keys(authUpdates).length > 0) {
-            const { error: authError } = await supabase.auth.admin.updateUserById(id, authUpdates);
+            const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, authUpdates);
             if (authError) throw new Error(`Auth update error: ${authError.message}`);
         }
 
@@ -283,7 +276,7 @@ export const updateUser = async (req, res) => {
         if (role) appUserUpdates.role = role;
 
         if (Object.keys(appUserUpdates).length > 0) {
-            const { error: appUserError } = await supabase
+            const { error: appUserError } = await supabaseAdmin
                 .from('app_users')
                 .update(appUserUpdates)
                 .eq('uid', id);
@@ -331,26 +324,23 @@ export const updateUser = async (req, res) => {
         if (email) updateData.email = email; // sync email to profile table too
 
         if (role === 'siswa') {
-            if (nis) updateData.nis = nis;
             if (tanggal_lahir) updateData.tanggal_lahir = tanggal_lahir;
             if (kelas) updateData.kelas = kelas;
             if (alamat) updateData.alamat = alamat;
 
-            const { error: siswaError } = await supabase
+            const { error: siswaError } = await supabaseAdmin
                 .from('siswa')
                 .update(updateData)
                 .eq('user_uid', id);
             profileError = siswaError;
         } else if (role === 'teacher') {
-            if (nip) updateData.nip = nip;
-
-            const { error: teacherError } = await supabase
+            const { error: teacherError } = await supabaseAdmin
                 .from('teacher')
                 .update(updateData)
                 .eq('user_uid', id);
             profileError = teacherError;
         } else if (role === 'admin') {
-            const { error: adminError } = await supabase
+            const { error: adminError } = await supabaseAdmin
                 .from('admin')
                 .update(updateData)
                 .eq('user_uid', id);
@@ -374,29 +364,123 @@ export const updateUser = async (req, res) => {
 };
 
 /**
- * Delete user (Admin only)
+ * Delete user (Admin and Teacher)
  * DELETE /cbt/users/:id
  */
 export const deleteUser = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Delete from Supabase Auth (This should cascade to app_users if DB is set up closely, or we do manual cleanup)
-        // Using admin API
-        const { error: authError } = await supabase.auth.admin.deleteUser(id);
+        // Step 1: Delete related data from all tables (using supabaseAdmin to bypass RLS)
+        // Delete in order to respect foreign key constraints
 
-        if (authError) {
-            throw new Error(`Auth delete error: ${authError.message}`);
+        // 1. Delete student_answers (references exam_attempts)
+        // First, get all attempt IDs for this user
+        const { data: attempts, error: fetchAttemptsError } = await supabaseAdmin
+            .from('exam_attempts')
+            .select('id')
+            .eq('user_uid', id);
+
+        if (fetchAttemptsError) {
+            console.warn('Warning fetching exam_attempts:', fetchAttemptsError.message);
         }
 
-        // We can optionally delete from app_users manually if no cascade
-        const { error: dbError } = await supabase
+        // Delete student_answers for these attempts
+        if (attempts && attempts.length > 0) {
+            const attemptIds = attempts.map(a => a.id);
+            const { error: answersError } = await supabaseAdmin
+                .from('student_answers')
+                .delete()
+                .in('attempt_id', attemptIds);
+
+            if (answersError) {
+                console.warn('Warning deleting student_answers:', answersError.message);
+            }
+        }
+
+        // 2. Delete exam_attempts
+        const { error: attemptsError } = await supabaseAdmin
+            .from('exam_attempts')
+            .delete()
+            .eq('user_uid', id);
+
+        if (attemptsError) {
+            console.warn('Warning deleting exam_attempts:', attemptsError.message);
+        }
+
+        // 3. Delete hasil_cbt
+        const { error: hasilError } = await supabaseAdmin
+            .from('hasil_cbt')
+            .delete()
+            .eq('user_uid', id);
+
+        if (hasilError) {
+            console.warn('Warning deleting hasil_cbt:', hasilError.message);
+        }
+
+        // 4. Delete nilai_saw
+        const { error: nilaiError } = await supabaseAdmin
+            .from('nilai_saw')
+            .delete()
+            .eq('user_uid', id);
+
+        if (nilaiError) {
+            console.warn('Warning deleting nilai_saw:', nilaiError.message);
+        }
+
+        // 5. Delete ranking_saw
+        const { error: rankingError } = await supabaseAdmin
+            .from('ranking_saw')
+            .delete()
+            .eq('user_uid', id);
+
+        if (rankingError) {
+            console.warn('Warning deleting ranking_saw:', rankingError.message);
+        }
+
+        // 6. Delete from role-specific tables
+        const { error: siswaError } = await supabaseAdmin
+            .from('siswa')
+            .delete()
+            .eq('user_uid', id);
+
+        if (siswaError) {
+            console.warn('Warning deleting siswa:', siswaError.message);
+        }
+
+        const { error: teacherError } = await supabaseAdmin
+            .from('teacher')
+            .delete()
+            .eq('user_uid', id);
+
+        if (teacherError) {
+            console.warn('Warning deleting teacher:', teacherError.message);
+        }
+
+        const { error: adminError } = await supabaseAdmin
+            .from('admin')
+            .delete()
+            .eq('user_uid', id);
+
+        if (adminError) {
+            console.warn('Warning deleting admin:', adminError.message);
+        }
+
+        // Step 2: Delete from app_users
+        const { error: appUsersError } = await supabaseAdmin
             .from('app_users')
             .delete()
             .eq('uid', id);
 
-        if (dbError) {
-            console.warn('DB delete warning (might be already deleted by cascade):', dbError.message);
+        if (appUsersError) {
+            console.warn('Warning deleting app_users:', appUsersError.message);
+        }
+
+        // Step 3: Delete from Supabase Auth (last step)
+        const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id);
+
+        if (authError) {
+            throw new Error(`Auth delete error: ${authError.message}`);
         }
 
         res.status(200).json({

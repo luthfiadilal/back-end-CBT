@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
  */
 export const register = async (req, res) => {
     try {
-        const { role, nama, email, password, nis, tanggal_lahir, kelas, alamat, nip, image } = req.body;
+        const { role, nama, email, password, tanggal_lahir, kelas, alamat, image } = req.body;
 
         // Validate role
         if (!role || !['siswa', 'teacher', 'admin'].includes(role)) {
@@ -30,19 +30,11 @@ export const register = async (req, res) => {
         }
 
         // Role-specific validation
-        if (role === 'siswa' && (!nis || !tanggal_lahir || !kelas || !alamat)) {
+        if (role === 'siswa' && (!tanggal_lahir || !kelas || !alamat)) {
             console.log('❌ Registration failed - Missing siswa fields');
             return res.status(400).json({
                 error: 'Validation error',
-                message: 'NIS, tanggal lahir, kelas, and alamat are required for siswa'
-            });
-        }
-
-        if (role === 'teacher' && !nip) {
-            console.log('❌ Registration failed - Missing NIP for teacher');
-            return res.status(400).json({
-                error: 'Validation error',
-                message: 'NIP is required for teacher'
+                message: 'Tanggal lahir, kelas, and alamat are required for siswa'
             });
         }
 
@@ -59,40 +51,6 @@ export const register = async (req, res) => {
                 error: 'Validation error',
                 message: 'Email already registered'
             });
-        }
-
-        // Check if NIS exists (for siswa)
-        if (role === 'siswa') {
-            const { data: existingNIS } = await supabase
-                .from('siswa')
-                .select('nis')
-                .eq('nis', nis)
-                .single();
-
-            if (existingNIS) {
-                console.log('❌ Registration failed - NIS already exists:', nis);
-                return res.status(400).json({
-                    error: 'Validation error',
-                    message: 'NIS already registered'
-                });
-            }
-        }
-
-        // Check if NIP exists (for teacher)
-        if (role === 'teacher') {
-            const { data: existingNIP } = await supabase
-                .from('teacher')
-                .select('nip')
-                .eq('nip', nip)
-                .single();
-
-            if (existingNIP) {
-                console.log('❌ Registration failed - NIP already exists:', nip);
-                return res.status(400).json({
-                    error: 'Validation error',
-                    message: 'NIP already registered'
-                });
-            }
         }
 
         // Create user in Supabase Auth
@@ -182,7 +140,6 @@ export const register = async (req, res) => {
                             tanggal_lahir,
                             alamat,
                             kelas,
-                            nis,
                             email,
                             image_url: imageUrl
                         })
@@ -198,7 +155,6 @@ export const register = async (req, res) => {
                         .insert({
                             user_uid: userId,
                             nama,
-                            nip,
                             email,
                             image_url: imageUrl
                         })
@@ -244,12 +200,9 @@ export const register = async (req, res) => {
             };
 
             if (role === 'siswa') {
-                responseProfile.nis = profileData.nis;
                 responseProfile.kelas = profileData.kelas;
                 responseProfile.tanggal_lahir = profileData.tanggal_lahir;
                 responseProfile.alamat = profileData.alamat;
-            } else if (role === 'teacher') {
-                responseProfile.nip = profileData.nip;
             }
 
             res.status(201).json({
