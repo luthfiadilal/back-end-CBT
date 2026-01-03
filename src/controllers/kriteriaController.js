@@ -86,6 +86,7 @@ export const createKriteria = async (req, res) => {
         console.log('✅ Create kriteria response sent:', data);
         res.status(201).json({
             success: true,
+            message: 'Kriteria created successfully',
             data
         });
     } catch (error) {
@@ -114,6 +115,7 @@ export const updateKriteria = async (req, res) => {
         console.log('✅ Update kriteria response sent:', id);
         res.status(200).json({
             success: true,
+            message: 'Kriteria updated successfully',
             data
         });
     } catch (error) {
