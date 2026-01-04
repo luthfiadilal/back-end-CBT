@@ -40,10 +40,52 @@ export const finishExam = async (req, res) => {
             return ans.is_correct ? sum + (ans.questions.difficulty_level || 0) : sum;
         }, 0);
 
-        // B.2. Hitung Total Score dari auto_score
-        const total_score = answers.reduce((sum, ans) => {
+        // B.2. Hitung Total Score dengan mempertimbangkan pair_group
+        // LOGIC: Jika 2 soal dalam pair_group sama-sama benar, hitung hanya 1 poin (bukan 2)
+
+        // Kelompokkan jawaban berdasarkan pair_group
+        const pairGroupScores = {};
+        const nonPairAnswers = [];
+
+        answers.forEach(ans => {
+            const pairGroup = ans.questions.pair_group;
+
+            if (pairGroup) {
+                // Soal memiliki pair_group
+                if (!pairGroupScores[pairGroup]) {
+                    pairGroupScores[pairGroup] = {
+                        answers: [],
+                        totalScore: 0
+                    };
+                }
+                pairGroupScores[pairGroup].answers.push(ans);
+            } else {
+                // Soal tidak memiliki pair_group
+                nonPairAnswers.push(ans);
+            }
+        });
+
+        // Hitung score dari soal non-pair (normal scoring)
+        let total_score = nonPairAnswers.reduce((sum, ans) => {
             return sum + (ans.auto_score || 0);
         }, 0);
+
+        // Hitung score dari pair_group
+        // Jika SEMUA soal dalam pair benar → dapat 1 poin
+        // Jika ada yang salah → dapat 0 poin
+        Object.keys(pairGroupScores).forEach(groupKey => {
+            const group = pairGroupScores[groupKey];
+            const allCorrect = group.answers.every(ans => ans.is_correct);
+
+            if (allCorrect) {
+                // Semua soal dalam pair benar → tambah 1 poin saja
+                total_score += 1;
+                console.log(`Pair group ${groupKey}: All correct → +1 point`);
+            } else {
+                // Ada yang salah → 0 poin
+                console.log(`Pair group ${groupKey}: Not all correct → +0 point`);
+            }
+        });
 
         console.log(`Total Correct: ${jumlahBenar}, Total Score: ${total_score}, Skor Kesulitan: ${skorKesulitan}`);
 
