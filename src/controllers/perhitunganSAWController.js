@@ -627,3 +627,127 @@ export const getAllDetail = async (req, res) => {
         });
     }
 };
+
+// DELETE /api/student/exam/delete-result
+export const deleteOneOrAllResultCBT = async (req, res) => {
+    try {
+        console.log("=== DELETE ONE OR ALL RESULT CBT REQUEST ===");
+        const { exam_id, kelas, user_uid } = req.query;
+        console.log("Delete Filters:", { exam_id, kelas, user_uid });
+
+        // 0. Validasi Input: Setidaknya satu filter harus ada untuk mencegah hapus semua data tidak sengaja
+        if (!exam_id && !kelas && !user_uid) {
+            return res.status(400).json({
+                message: "Minimal satu filter (exam_id, kelas, atau user_uid) harus disertakan untuk penghapusan."
+            });
+        }
+
+        // 1. Filter User UIDs based on Class (if provided)
+        let classUserUids = null;
+        if (kelas) {
+            const { data: siswaData, error: siswaError } = await supabase
+                .from('siswa')
+                .select('user_uid')
+                .ilike('kelas', `%${kelas}%`);
+
+            if (siswaError) {
+                console.error("Error fetching siswa by class:", siswaError);
+                throw siswaError;
+            }
+
+            if (siswaData) {
+                classUserUids = siswaData.map(s => s.user_uid);
+                // If class provided but no students found, nothing to delete for this class
+                if (classUserUids.length === 0) {
+                    return res.status(200).json({
+                        message: "Tidak ada siswa ditemukan di kelas tersebut, tidak ada yang dihapus.",
+                        deleted_count: 0
+                    });
+                }
+            }
+        }
+
+        // 2. Cari Exam Attempts yang akan dihapus berdasarkan filter
+        let query = supabase
+            .from('exam_attempts')
+            .select('id');
+
+        // Apply Exam ID Filter
+        if (exam_id) query = query.eq('exam_id', exam_id);
+
+        // Apply User/Student ID Filter
+        if (user_uid) query = query.eq('user_uid', user_uid);
+
+        // Apply Class Filter (via User UIDs)
+        if (classUserUids !== null) query = query.in('user_uid', classUserUids);
+
+        const { data: attemptsToDelete, error: attemptError } = await query;
+
+        if (attemptError) throw attemptError;
+
+        if (!attemptsToDelete || attemptsToDelete.length === 0) {
+            return res.status(200).json({
+                message: "Tidak ada data ujian yang cocok untuk dihapus.",
+                deleted_count: 0
+            });
+        }
+
+        const attemptIds = attemptsToDelete.map(a => a.id);
+        console.log(`Found ${attemptIds.length} attempts to delete. IDs:`, attemptIds);
+
+        // 3. Lakukan Penghapusan Berurutan (Sequential Deletion)
+        // URUTAN PENTING: student_answers -> hasil_cbt -> nilai_saw -> ranking_saw -> exam_attempts
+
+        // A. Hapus student_answers
+        const { error: err1 } = await supabase
+            .from('student_answers')
+            .delete()
+            .in('attempt_id', attemptIds);
+        if (err1) throw new Error(`Gagal menghapus student_answers: ${err1.message}`);
+
+        // B. Hapus hasil_cbt
+        const { error: err2 } = await supabase
+            .from('hasil_cbt')
+            .delete()
+            .in('attempt_id', attemptIds);
+        if (err2) throw new Error(`Gagal menghapus hasil_cbt: ${err2.message}`);
+
+        // C. Hapus nilai_saw
+        const { error: err3 } = await supabase
+            .from('nilai_saw')
+            .delete()
+            .in('attempt_id', attemptIds);
+        if (err3) throw new Error(`Gagal menghapus nilai_saw: ${err3.message}`);
+
+        // D. Hapus ranking_saw
+        const { error: err4 } = await supabase
+            .from('ranking_saw')
+            .delete()
+            .in('attempt_id', attemptIds);
+        if (err4) throw new Error(`Gagal menghapus ranking_saw: ${err4.message}`);
+
+        // E. Hapus exam_attempts (Table Induk Data Ujian)
+        const { error: err5 } = await supabase
+            .from('exam_attempts')
+            .delete()
+            .in('id', attemptIds);
+        if (err5) throw new Error(`Gagal menghapus exam_attempts: ${err5.message}`);
+
+        console.log("Deletion sequence completed successfully.");
+
+        return res.status(200).json({
+            message: "Data ujian berhasil dihapus.",
+            deleted_attempts_count: attemptIds.length,
+            deleted_ids: attemptIds
+        });
+
+    } catch (err) {
+        console.error("=== CONTROLLER ERROR: deleteOneOrAllResultCBT ===");
+        console.error(err);
+        return res.status(500).json({
+            error: "Internal Server Error",
+            message: err.message,
+            details: err
+        });
+    }
+};
