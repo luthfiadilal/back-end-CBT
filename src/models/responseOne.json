@@ -1,0 +1,76 @@
+{
+    "message": "Get All Detail Success",
+    "total_count": 1,
+    "data": [
+        {
+            "ranking_id": 22,
+            "exam_title": "Latihan 1 (Makhorijul Huruf, Lam Ta'rif dan Qolqolah)",
+            "student_name": "Azzam ",
+            "student_class": "Remaja",
+            "siswa": {
+                "id": 28,
+                "user_uid": "25b3641b-a508-4bc4-838e-7922d30d90c4",
+                "nama": "Azzam ",
+                "tanggal_lahir": "2011-11-20",
+                "alamat": "Bumi Asri",
+                "kelas": "Remaja",
+                "nis": null,
+                "email": "azzam123@gmail.com",
+                "created_at": "2026-01-04T07:37:46.191903+00:00",
+                "image_url": null
+            },
+            "exam": {
+                "id": 3,
+                "title": "Latihan 1 (Makhorijul Huruf, Lam Ta'rif dan Qolqolah)",
+                "is_active": true,
+                "created_at": "2025-12-15T14:48:43.416575+00:00",
+                "description": "Latihan ini disusun untuk menguji dan melatih pemahaman peserta didik terhadap Makhorijul Huruf, Lam Ta’rif, dan Qolqolah. Melalui soal-soal yang disajikan, peserta diharapkan mampu mengenali tempat keluarnya huruf hijaiyah dengan tepat, membedakan bacaan Lam Ta’rif (Syamsiyah dan Qamariyah), serta memahami dan menerapkan hukum bacaan Qolqolah secara benar dalam ayat Al-Qur’an.",
+                "total_questions": 15,
+                "total_time_minutes": 30
+            },
+            "ranking_saw": {
+                "id": 22,
+                "nilai_preferensi": 0.745,
+                "nilai_konversi": 74.5,
+                "status": "Fasih",
+                "ranking": 0,
+                "created_at": "2026-01-06T06:34:07.633915"
+            },
+            "exam_attempt": {
+                "id": 47,
+                "exam_id": 3,
+                "user_uid": "25b3641b-a508-4bc4-838e-7922d30d90c4",
+                "created_at": "2026-01-06T06:09:19.519089+00:00",
+                "started_at": "2026-01-06T06:09:19.089+00:00",
+                "finished_at": "2026-01-06T06:34:06.651+00:00",
+                "total_score": 18,
+                "total_correct": 12,
+                "duration_minutes": 25
+            },
+            "hasil_cbt": {
+                "id": 22,
+                "exam_id": 3,
+                "siswa_id": null,
+                "user_uid": "25b3641b-a508-4bc4-838e-7922d30d90c4",
+                "attempt_id": 47,
+                "created_at": "2026-01-06T06:34:07.298647",
+                "waktu_menit": 25,
+                "jumlah_benar": 12,
+                "pasangan_benar": 2,
+                "skor_kesulitan": 24
+            },
+            "nilai_saw": {
+                "c1": 4,
+                "c2": 4,
+                "c3": 4,
+                "c4": 4,
+                "id": 22,
+                "exam_id": 3,
+                "siswa_id": null,
+                "user_uid": "25b3641b-a508-4bc4-838e-7922d30d90c4",
+                "attempt_id": 47,
+                "created_at": "2026-01-06T06:34:07.582466"
+            }
+        }
+    ]
+}

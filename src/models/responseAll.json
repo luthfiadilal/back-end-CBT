@@ -1,0 +1,356 @@
+{
+    "message": "Get All Detail Success",
+    "total_count": 5,
+    "data": [
+        {
+            "ranking_id": 13,
+            "exam_title": "Latihan 1 (Makhorijul Huruf, Lam Ta'rif dan Qolqolah)",
+            "student_name": "Azka Al-Khalifi Putra",
+            "student_class": "Ulya",
+            "siswa": {
+                "id": 36,
+                "user_uid": "d592b7f2-736d-47ec-a55a-d9528ac7db0d",
+                "nama": "Azka Al-Khalifi Putra",
+                "tanggal_lahir": "2013-12-12",
+                "alamat": "Bumi Asri",
+                "kelas": "Ulya",
+                "nis": null,
+                "email": "alkhalifiazka76@gmail.com",
+                "created_at": "2026-01-05T02:23:36.159525+00:00",
+                "image_url": null
+            },
+            "exam": {
+                "id": 3,
+                "title": "Latihan 1 (Makhorijul Huruf, Lam Ta'rif dan Qolqolah)",
+                "is_active": true,
+                "created_at": "2025-12-15T14:48:43.416575+00:00",
+                "description": "Latihan ini disusun untuk menguji dan melatih pemahaman peserta didik terhadap Makhorijul Huruf, Lam Ta’rif, dan Qolqolah. Melalui soal-soal yang disajikan, peserta diharapkan mampu mengenali tempat keluarnya huruf hijaiyah dengan tepat, membedakan bacaan Lam Ta’rif (Syamsiyah dan Qamariyah), serta memahami dan menerapkan hukum bacaan Qolqolah secara benar dalam ayat Al-Qur’an.",
+                "total_questions": 15,
+                "total_time_minutes": 30
+            },
+            "ranking_saw": {
+                "id": 13,
+                "nilai_preferensi": 0.59,
+                "nilai_konversi": 59,
+                "status": "Mujtahid",
+                "ranking": 0,
+                "created_at": "2026-01-05T02:38:12.031005"
+            },
+            "exam_attempt": {
+                "id": 37,
+                "exam_id": 3,
+                "user_uid": "d592b7f2-736d-47ec-a55a-d9528ac7db0d",
+                "created_at": "2026-01-05T02:27:08.909452+00:00",
+                "started_at": "2026-01-05T02:27:08.595+00:00",
+                "finished_at": "2026-01-05T02:38:11.079+00:00",
+                "total_score": 10,
+                "total_correct": 9,
+                "duration_minutes": 11
+            },
+            "hasil_cbt": {
+                "id": 13,
+                "exam_id": 3,
+                "siswa_id": null,
+                "user_uid": "d592b7f2-736d-47ec-a55a-d9528ac7db0d",
+                "attempt_id": 37,
+                "created_at": "2026-01-05T02:38:11.616615",
+                "waktu_menit": 11,
+                "jumlah_benar": 9,
+                "pasangan_benar": 1,
+                "skor_kesulitan": 17
+            },
+            "nilai_saw": {
+                "c1": 3,
+                "c2": 3,
+                "c3": 3,
+                "c4": 2,
+                "id": 13,
+                "exam_id": 3,
+                "siswa_id": null,
+                "user_uid": "d592b7f2-736d-47ec-a55a-d9528ac7db0d",
+                "attempt_id": 37,
+                "created_at": "2026-01-05T02:38:11.964776"
+            }
+        },
+        {
+            "ranking_id": 17,
+            "exam_title": "Latihan 1 (Makhorijul Huruf, Lam Ta'rif dan Qolqolah)",
+            "student_name": "Alfarizi Raihan Syahfi",
+            "student_class": "Ulya",
+            "siswa": {
+                "id": 38,
+                "user_uid": "5b9e75a3-b723-4624-8bed-b45759a39730",
+                "nama": "Alfarizi Raihan Syahfi",
+                "tanggal_lahir": "2011-10-10",
+                "alamat": "Bumi Asri",
+                "kelas": "Ulya",
+                "nis": null,
+                "email": "raihansyahfi55@gmail.com",
+                "created_at": "2026-01-05T02:25:56.736537+00:00",
+                "image_url": null
+            },
+            "exam": {
+                "id": 3,
+                "title": "Latihan 1 (Makhorijul Huruf, Lam Ta'rif dan Qolqolah)",
+                "is_active": true,
+                "created_at": "2025-12-15T14:48:43.416575+00:00",
+                "description": "Latihan ini disusun untuk menguji dan melatih pemahaman peserta didik terhadap Makhorijul Huruf, Lam Ta’rif, dan Qolqolah. Melalui soal-soal yang disajikan, peserta diharapkan mampu mengenali tempat keluarnya huruf hijaiyah dengan tepat, membedakan bacaan Lam Ta’rif (Syamsiyah dan Qamariyah), serta memahami dan menerapkan hukum bacaan Qolqolah secara benar dalam ayat Al-Qur’an.",
+                "total_questions": 15,
+                "total_time_minutes": 30
+            },
+            "ranking_saw": {
+                "id": 17,
+                "nilai_preferensi": 0.68,
+                "nilai_konversi": 68,
+                "status": "Mujtahid",
+                "ranking": 0,
+                "created_at": "2026-01-05T05:28:37.554095"
+            },
+            "exam_attempt": {
+                "id": 41,
+                "exam_id": 3,
+                "user_uid": "5b9e75a3-b723-4624-8bed-b45759a39730",
+                "created_at": "2026-01-05T05:26:15.884995+00:00",
+                "started_at": "2026-01-05T05:26:15.399+00:00",
+                "finished_at": "2026-01-05T05:28:36.675+00:00",
+                "total_score": 8,
+                "total_correct": 10,
+                "duration_minutes": 2
+            },
+            "hasil_cbt": {
+                "id": 17,
+                "exam_id": 3,
+                "siswa_id": null,
+                "user_uid": "5b9e75a3-b723-4624-8bed-b45759a39730",
+                "attempt_id": 41,
+                "created_at": "2026-01-05T05:28:37.287022",
+                "waktu_menit": 2,
+                "jumlah_benar": 10,
+                "pasangan_benar": 2,
+                "skor_kesulitan": 17
+            },
+            "nilai_saw": {
+                "c1": 3,
+                "c2": 3,
+                "c3": 4,
+                "c4": 1,
+                "id": 17,
+                "exam_id": 3,
+                "siswa_id": null,
+                "user_uid": "5b9e75a3-b723-4624-8bed-b45759a39730",
+                "attempt_id": 41,
+                "created_at": "2026-01-05T05:28:37.506194"
+            }
+        },
+        {
+            "ranking_id": 18,
+            "exam_title": "Latihan 1 (Makhorijul Huruf, Lam Ta'rif dan Qolqolah)",
+            "student_name": "Nadifa Khumaira Putri Anom",
+            "student_class": "ulya",
+            "siswa": {
+                "id": 11,
+                "user_uid": "44efcf04-9bc0-4a17-9d01-7be5a55c0ac1",
+                "nama": "Nadifa Khumaira Putri Anom",
+                "tanggal_lahir": "2011-03-30",
+                "alamat": "Bumi Asri",
+                "kelas": "ulya",
+                "nis": null,
+                "email": "Nadifa12@gmail.com",
+                "created_at": "2025-12-29T16:17:32.707604+00:00",
+                "image_url": null
+            },
+            "exam": {
+                "id": 3,
+                "title": "Latihan 1 (Makhorijul Huruf, Lam Ta'rif dan Qolqolah)",
+                "is_active": true,
+                "created_at": "2025-12-15T14:48:43.416575+00:00",
+                "description": "Latihan ini disusun untuk menguji dan melatih pemahaman peserta didik terhadap Makhorijul Huruf, Lam Ta’rif, dan Qolqolah. Melalui soal-soal yang disajikan, peserta diharapkan mampu mengenali tempat keluarnya huruf hijaiyah dengan tepat, membedakan bacaan Lam Ta’rif (Syamsiyah dan Qamariyah), serta memahami dan menerapkan hukum bacaan Qolqolah secara benar dalam ayat Al-Qur’an.",
+                "total_questions": 15,
+                "total_time_minutes": 30
+            },
+            "ranking_saw": {
+                "id": 18,
+                "nilai_preferensi": 0.91,
+                "nilai_konversi": 91,
+                "status": "Mutqin",
+                "ranking": 0,
+                "created_at": "2026-01-06T04:47:13.621813"
+            },
+            "exam_attempt": {
+                "id": 43,
+                "exam_id": 3,
+                "user_uid": "44efcf04-9bc0-4a17-9d01-7be5a55c0ac1",
+                "created_at": "2026-01-06T04:35:00.242592+00:00",
+                "started_at": "2026-01-06T04:34:59.966+00:00",
+                "finished_at": "2026-01-06T04:47:12.896+00:00",
+                "total_score": 19,
+                "total_correct": 14,
+                "duration_minutes": 12
+            },
+            "hasil_cbt": {
+                "id": 18,
+                "exam_id": 3,
+                "siswa_id": null,
+                "user_uid": "44efcf04-9bc0-4a17-9d01-7be5a55c0ac1",
+                "attempt_id": 43,
+                "created_at": "2026-01-06T04:47:13.329581",
+                "waktu_menit": 12,
+                "jumlah_benar": 14,
+                "pasangan_benar": 2,
+                "skor_kesulitan": 28
+            },
+            "nilai_saw": {
+                "c1": 5,
+                "c2": 5,
+                "c3": 4,
+                "c4": 2,
+                "id": 18,
+                "exam_id": 3,
+                "siswa_id": null,
+                "user_uid": "44efcf04-9bc0-4a17-9d01-7be5a55c0ac1",
+                "attempt_id": 43,
+                "created_at": "2026-01-06T04:47:13.571982"
+            }
+        },
+        {
+            "ranking_id": 19,
+            "exam_title": "Latihan 1 (Makhorijul Huruf, Lam Ta'rif dan Qolqolah)",
+            "student_name": "Maulana Patih Jaiz",
+            "student_class": "Ulya",
+            "siswa": {
+                "id": 13,
+                "user_uid": "69161104-a57a-440b-ba04-8c02191e296a",
+                "nama": "Maulana Patih Jaiz",
+                "tanggal_lahir": "2012-06-03",
+                "alamat": "Jakarta selatan",
+                "kelas": "Ulya",
+                "nis": null,
+                "email": "maulanapatih25@gmail.com",
+                "created_at": "2026-01-03T07:23:21.831217+00:00",
+                "image_url": null
+            },
+            "exam": {
+                "id": 3,
+                "title": "Latihan 1 (Makhorijul Huruf, Lam Ta'rif dan Qolqolah)",
+                "is_active": true,
+                "created_at": "2025-12-15T14:48:43.416575+00:00",
+                "description": "Latihan ini disusun untuk menguji dan melatih pemahaman peserta didik terhadap Makhorijul Huruf, Lam Ta’rif, dan Qolqolah. Melalui soal-soal yang disajikan, peserta diharapkan mampu mengenali tempat keluarnya huruf hijaiyah dengan tepat, membedakan bacaan Lam Ta’rif (Syamsiyah dan Qamariyah), serta memahami dan menerapkan hukum bacaan Qolqolah secara benar dalam ayat Al-Qur’an.",
+                "total_questions": 15,
+                "total_time_minutes": 30
+            },
+            "ranking_saw": {
+                "id": 19,
+                "nilai_preferensi": 0.573333333333333,
+                "nilai_konversi": 57.3333333333333,
+                "status": "Mujtahid",
+                "ranking": 0,
+                "created_at": "2026-01-06T05:07:36.895096"
+            },
+            "exam_attempt": {
+                "id": 44,
+                "exam_id": 3,
+                "user_uid": "69161104-a57a-440b-ba04-8c02191e296a",
+                "created_at": "2026-01-06T04:49:27.966745+00:00",
+                "started_at": "2026-01-06T04:49:27.658+00:00",
+                "finished_at": "2026-01-06T05:07:35.803+00:00",
+                "total_score": 12,
+                "total_correct": 10,
+                "duration_minutes": 18
+            },
+            "hasil_cbt": {
+                "id": 19,
+                "exam_id": 3,
+                "siswa_id": null,
+                "user_uid": "69161104-a57a-440b-ba04-8c02191e296a",
+                "attempt_id": 44,
+                "created_at": "2026-01-06T05:07:36.452048",
+                "waktu_menit": 18,
+                "jumlah_benar": 10,
+                "pasangan_benar": 1,
+                "skor_kesulitan": 19
+            },
+            "nilai_saw": {
+                "c1": 3,
+                "c2": 3,
+                "c3": 3,
+                "c4": 3,
+                "id": 19,
+                "exam_id": 3,
+                "siswa_id": null,
+                "user_uid": "69161104-a57a-440b-ba04-8c02191e296a",
+                "attempt_id": 44,
+                "created_at": "2026-01-06T05:07:36.804644"
+            }
+        },
+        {
+            "ranking_id": 21,
+            "exam_title": "Latihan 1 (Makhorijul Huruf, Lam Ta'rif dan Qolqolah)",
+            "student_name": "Erdi Ardana Sutanto",
+            "student_class": "Ulya",
+            "siswa": {
+                "id": 18,
+                "user_uid": "5ad19b6e-276d-4998-885d-c7718dfee4eb",
+                "nama": "Erdi Ardana Sutanto",
+                "tanggal_lahir": "2017-01-30",
+                "alamat": "Bumi Asri",
+                "kelas": "Ulya",
+                "nis": null,
+                "email": "erdiardana34@gmail.com",
+                "created_at": "2026-01-04T07:20:54.670535+00:00",
+                "image_url": null
+            },
+            "exam": {
+                "id": 3,
+                "title": "Latihan 1 (Makhorijul Huruf, Lam Ta'rif dan Qolqolah)",
+                "is_active": true,
+                "created_at": "2025-12-15T14:48:43.416575+00:00",
+                "description": "Latihan ini disusun untuk menguji dan melatih pemahaman peserta didik terhadap Makhorijul Huruf, Lam Ta’rif, dan Qolqolah. Melalui soal-soal yang disajikan, peserta diharapkan mampu mengenali tempat keluarnya huruf hijaiyah dengan tepat, membedakan bacaan Lam Ta’rif (Syamsiyah dan Qamariyah), serta memahami dan menerapkan hukum bacaan Qolqolah secara benar dalam ayat Al-Qur’an.",
+                "total_questions": 15,
+                "total_time_minutes": 30
+            },
+            "ranking_saw": {
+                "id": 21,
+                "nilai_preferensi": 0.813333333333333,
+                "nilai_konversi": 81.3333333333333,
+                "status": "Fasih",
+                "ranking": 0,
+                "created_at": "2026-01-06T06:00:48.458428"
+            },
+            "exam_attempt": {
+                "id": 46,
+                "exam_id": 3,
+                "user_uid": "5ad19b6e-276d-4998-885d-c7718dfee4eb",
+                "created_at": "2026-01-06T05:45:09.60744+00:00",
+                "started_at": "2026-01-06T05:45:09.222+00:00",
+                "finished_at": "2026-01-06T06:00:47.419+00:00",
+                "total_score": 18,
+                "total_correct": 13,
+                "duration_minutes": 16
+            },
+            "hasil_cbt": {
+                "id": 21,
+                "exam_id": 3,
+                "siswa_id": null,
+                "user_uid": "5ad19b6e-276d-4998-885d-c7718dfee4eb",
+                "attempt_id": 46,
+                "created_at": "2026-01-06T06:00:48.059361",
+                "waktu_menit": 16,
+                "jumlah_benar": 13,
+                "pasangan_benar": 2,
+                "skor_kesulitan": 27
+            },
+            "nilai_saw": {
+                "c1": 4,
+                "c2": 5,
+                "c3": 4,
+                "c4": 3,
+                "id": 21,
+                "exam_id": 3,
+                "siswa_id": null,
+                "user_uid": "5ad19b6e-276d-4998-885d-c7718dfee4eb",
+                "attempt_id": 46,
+                "created_at": "2026-01-06T06:00:48.389705"
+            }
+        }
+    ]
+}
