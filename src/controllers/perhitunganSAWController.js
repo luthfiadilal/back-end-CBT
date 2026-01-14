@@ -452,3 +452,178 @@ export const getExamRanking = async (req, res) => {
         return res.status(500).json({ error: err.message });
     }
 };
+
+// GET /api/student/exam/all-detail
+export const getAllDetail = async (req, res) => {
+    try {
+        console.log("=== GET ALL DETAIL REQUEST ===");
+        const { exam_id, kelas, user_uid } = req.query;
+        console.log("FiltersInput:", { exam_id, kelas, user_uid });
+
+        // 1. Filter User UIDs based on Class (if provided)
+        let classUserUids = null;
+        if (kelas) {
+            const { data: siswaData, error: siswaError } = await supabase
+                .from('siswa')
+                .select('user_uid')
+                .ilike('kelas', `%${kelas}%`);
+
+            if (siswaError) {
+                console.error("Error fetching siswa by class:", siswaError);
+                throw siswaError;
+            }
+
+            if (siswaData) {
+                classUserUids = siswaData.map(s => s.user_uid);
+                // If class provided but no students found, we can return empty early
+                if (classUserUids.length === 0) {
+                    console.log("No students found for class:", kelas);
+                    return res.status(200).json({
+                        message: "Data not found for the specified class",
+                        data: []
+                    });
+                }
+            }
+        }
+
+        // DEBUG: Check if specific user_uid matches the class filter
+        if (user_uid && classUserUids) {
+            const isUserInClass = classUserUids.includes(user_uid);
+            if (!isUserInClass) {
+                console.warn(`[DEBUG] CONFLICT: User ${user_uid} was not found in class filters for "${kelas}". Result will be empty.`);
+            } else {
+                console.log(`[DEBUG] User ${user_uid} confirmed in class "${kelas}".`);
+            }
+        }
+
+        // 2. Build Query on ranking_saw (Central Table)
+        let query = supabase
+            .from('ranking_saw')
+            .select(`
+                *,
+                exams!inner (
+                    *
+                ),
+                exam_attempts (
+                    *,
+                    hasil_cbt (*),
+                    nilai_saw (*)
+                )
+            `);
+
+        // Apply Exam ID Filter
+        if (exam_id) {
+            query = query.eq('exam_id', exam_id);
+        }
+
+        // Apply User/Student ID Filter
+        if (user_uid) {
+            query = query.eq('user_uid', user_uid);
+        }
+
+        // Apply Class Filter (via User UIDs)
+        if (classUserUids !== null) {
+            query = query.in('user_uid', classUserUids);
+        }
+
+        // Execute Query
+        const { data: rankingData, error: rankingError } = await query;
+
+        if (rankingError) {
+            console.error("Error query ranking_saw:", rankingError);
+            throw rankingError;
+        }
+
+        if (!rankingData || rankingData.length === 0) {
+            console.log("No matching data found in ranking_saw table.");
+            return res.status(200).json({
+                message: "No data found matching criteria",
+                data: []
+            });
+        }
+
+        console.log(`Found ${rankingData.length} records. Fetching student details...`);
+
+        // 3. Enrich with Student Details (Siswa)
+        const userUidsToCheck = [...new Set(rankingData.map(r => r.user_uid))];
+
+        let siswaMap = {};
+        if (userUidsToCheck.length > 0) {
+            const { data: allSiswa, error: userError } = await supabase
+                .from('siswa')
+                .select('*')
+                .in('user_uid', userUidsToCheck);
+
+            if (userError) {
+                console.error("Error fetching student details:", userError);
+                // Continue without student details
+            } else if (allSiswa) {
+                allSiswa.forEach(s => {
+                    siswaMap[s.user_uid] = s;
+                });
+            }
+        }
+
+        // 4. Format the Final Response
+        const detailedResponse = rankingData.map(item => {
+            const siswaInfo = siswaMap[item.user_uid] || null;
+
+            // Handle exam_attempts structure (Supabase might return single object or array)
+            // Ideally explicit relationship: ranking_saw.attempt_id -> exam_attempts.id is One-to-One
+            // Accessing item.exam_attempts
+            let attempt = item.exam_attempts;
+            if (Array.isArray(attempt)) attempt = attempt[0]; // Access first if array
+
+            // Nested relations in attempt
+            let hasilCbt = attempt?.hasil_cbt;
+            if (Array.isArray(hasilCbt)) hasilCbt = hasilCbt[0];
+
+            let nilaiSaw = attempt?.nilai_saw;
+            if (Array.isArray(nilaiSaw)) nilaiSaw = nilaiSaw[0];
+
+            // Clean up attempt object for display
+            let cleanAttempt = { ...attempt };
+            delete cleanAttempt.hasil_cbt;
+            delete cleanAttempt.nilai_saw;
+
+            return {
+                ranking_id: item.id,
+                exam_title: item.exams?.title,
+                student_name: siswaInfo?.nama || 'Unknown',
+                student_class: siswaInfo?.kelas || 'Unknown',
+
+                // Detailed objects
+                siswa: siswaInfo,
+                exam: item.exams,
+                ranking_saw: {
+                    id: item.id,
+                    nilai_preferensi: item.nilai_preferensi,
+                    nilai_konversi: item.nilai_konversi,
+                    status: item.status,
+                    ranking: item.ranking,
+                    created_at: item.created_at
+                },
+                exam_attempt: cleanAttempt,
+                hasil_cbt: hasilCbt || null,
+                nilai_saw: nilaiSaw || null
+            };
+        });
+
+        console.log("Successfully formatted response. Sending JSON.");
+
+        return res.status(200).json({
+            message: "Get All Detail Success",
+            total_count: detailedResponse.length,
+            data: detailedResponse
+        });
+
+    } catch (err) {
+        console.error("=== CONTROLLER ERROR: getAllDetail ===");
+        console.error(err);
+        return res.status(500).json({
+            error: "Internal Server Error",
+            message: err.message,
+            details: err
+        });
+    }
+};
