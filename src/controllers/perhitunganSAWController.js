@@ -635,7 +635,7 @@ export const deleteOneOrAllResultCBT = async (req, res) => {
         const { exam_id, kelas, user_uid } = req.query;
         console.log("Delete Filters:", { exam_id, kelas, user_uid });
 
-        // 0. Validasi Input: Setidaknya satu filter harus ada untuk mencegah hapus semua data tidak sengaja
+        // 0. Validasi Input
         if (!exam_id && !kelas && !user_uid) {
             return res.status(400).json({
                 message: "Minimal satu filter (exam_id, kelas, atau user_uid) harus disertakan untuk penghapusan."
@@ -657,7 +657,6 @@ export const deleteOneOrAllResultCBT = async (req, res) => {
 
             if (siswaData) {
                 classUserUids = siswaData.map(s => s.user_uid);
-                // If class provided but no students found, nothing to delete for this class
                 if (classUserUids.length === 0) {
                     return res.status(200).json({
                         message: "Tidak ada siswa ditemukan di kelas tersebut, tidak ada yang dihapus.",
@@ -696,42 +695,49 @@ export const deleteOneOrAllResultCBT = async (req, res) => {
         console.log(`Found ${attemptIds.length} attempts to delete. IDs:`, attemptIds);
 
         // 3. Lakukan Penghapusan Berurutan (Sequential Deletion)
-        // URUTAN PENTING: student_answers -> hasil_cbt -> nilai_saw -> ranking_saw -> exam_attempts
+        // NOTE: student_answers akan otomatis terhapus karena ON DELETE CASCADE
+        // URUTAN: hasil_cbt -> nilai_saw -> ranking_saw -> exam_attempts (CASCADE -> student_answers)
 
-        // A. Hapus student_answers
-        const { error: err1 } = await supabase
-            .from('student_answers')
-            .delete()
-            .in('attempt_id', attemptIds);
-        if (err1) throw new Error(`Gagal menghapus student_answers: ${err1.message}`);
-
-        // B. Hapus hasil_cbt
-        const { error: err2 } = await supabase
+        // A. Hapus hasil_cbt
+        console.log('Deleting hasil_cbt for attempt_ids:', attemptIds);
+        const { data: deleted1, error: err1 } = await supabase
             .from('hasil_cbt')
             .delete()
-            .in('attempt_id', attemptIds);
-        if (err2) throw new Error(`Gagal menghapus hasil_cbt: ${err2.message}`);
+            .in('attempt_id', attemptIds)
+            .select();
+        if (err1) throw new Error(`Gagal menghapus hasil_cbt: ${err1.message}`);
+        console.log(`Deleted ${deleted1?.length || 0} hasil_cbt records`);
 
-        // C. Hapus nilai_saw
-        const { error: err3 } = await supabase
+        // B. Hapus nilai_saw
+        console.log('Deleting nilai_saw for attempt_ids:', attemptIds);
+        const { data: deleted2, error: err2 } = await supabase
             .from('nilai_saw')
             .delete()
-            .in('attempt_id', attemptIds);
-        if (err3) throw new Error(`Gagal menghapus nilai_saw: ${err3.message}`);
+            .in('attempt_id', attemptIds)
+            .select();
+        if (err2) throw new Error(`Gagal menghapus nilai_saw: ${err2.message}`);
+        console.log(`Deleted ${deleted2?.length || 0} nilai_saw records`);
 
-        // D. Hapus ranking_saw
-        const { error: err4 } = await supabase
+        // C. Hapus ranking_saw
+        console.log('Deleting ranking_saw for attempt_ids:', attemptIds);
+        const { data: deleted3, error: err3 } = await supabase
             .from('ranking_saw')
             .delete()
-            .in('attempt_id', attemptIds);
-        if (err4) throw new Error(`Gagal menghapus ranking_saw: ${err4.message}`);
+            .in('attempt_id', attemptIds)
+            .select();
+        if (err3) throw new Error(`Gagal menghapus ranking_saw: ${err3.message}`);
+        console.log(`Deleted ${deleted3?.length || 0} ranking_saw records`);
 
-        // E. Hapus exam_attempts (Table Induk Data Ujian)
-        const { error: err5 } = await supabase
+        // D. Hapus exam_attempts (CASCADE akan otomatis hapus student_answers)
+        console.log('Deleting exam_attempts with ids:', attemptIds);
+        console.log('(student_answers will be auto-deleted by CASCADE)');
+        const { data: deleted4, error: err4 } = await supabase
             .from('exam_attempts')
             .delete()
-            .in('id', attemptIds);
-        if (err5) throw new Error(`Gagal menghapus exam_attempts: ${err5.message}`);
+            .in('id', attemptIds)
+            .select();
+        if (err4) throw new Error(`Gagal menghapus exam_attempts: ${err4.message}`);
+        console.log(`Deleted ${deleted4?.length || 0} exam_attempts records`);
 
         console.log("Deletion sequence completed successfully.");
 
