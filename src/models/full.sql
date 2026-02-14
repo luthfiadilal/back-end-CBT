@@ -13,7 +13,7 @@ CREATE TABLE public.admin (
 );
 CREATE TABLE public.app_users (
   uid uuid NOT NULL,
-  role text NOT NULL CHECK (role = ANY (ARRAY['siswa'::text, 'teacher'::text, 'admin'::text])),
+  role text NOT NULL CHECK (role = ANY (ARRAY['admin'::text, 'teacher'::text, 'siswa'::text, 'orang_tua'::text])),
   created_at timestamp with time zone DEFAULT now(),
   email character varying UNIQUE,
   password_hash character varying,
@@ -101,6 +101,16 @@ CREATE TABLE public.nilai_saw (
   CONSTRAINT nilai_saw_attempt_id_fkey FOREIGN KEY (attempt_id) REFERENCES public.exam_attempts(id),
   CONSTRAINT nilai_saw_user_uid_fkey FOREIGN KEY (user_uid) REFERENCES public.app_users(uid)
 );
+CREATE TABLE public.orang_tua (
+  id uuid NOT NULL,
+  nama text NOT NULL,
+  email character varying,
+  umur integer,
+  alamat text,
+  orang_tua_dari uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT orang_tua_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.question_options (
   id bigint NOT NULL DEFAULT nextval('question_options_id_seq'::regclass),
   question_id bigint NOT NULL,
@@ -163,9 +173,9 @@ CREATE TABLE public.student_answers (
   auto_score numeric DEFAULT 0,
   answered_at timestamp with time zone DEFAULT now(),
   CONSTRAINT student_answers_pkey PRIMARY KEY (id),
-  CONSTRAINT student_answers_attempt_id_fkey FOREIGN KEY (attempt_id) REFERENCES public.exam_attempts(id),
   CONSTRAINT student_answers_question_id_fkey FOREIGN KEY (question_id) REFERENCES public.questions(id),
-  CONSTRAINT student_answers_selected_option_id_fkey FOREIGN KEY (selected_option_id) REFERENCES public.question_options(id)
+  CONSTRAINT student_answers_selected_option_id_fkey FOREIGN KEY (selected_option_id) REFERENCES public.question_options(id),
+  CONSTRAINT student_answers_attempt_id_fkey FOREIGN KEY (attempt_id) REFERENCES public.exam_attempts(id)
 );
 CREATE TABLE public.teacher (
   id bigint NOT NULL DEFAULT nextval('teacher_id_seq'::regclass),

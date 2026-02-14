@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import supabase, { supabaseUrl, supabaseAnonKey } from '../config/supabase.js';
+import supabase, { supabaseUrl, supabaseAnonKey, supabaseAdmin } from '../config/supabase.js';
 import { generateToken } from '../utils/authUtils.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -12,11 +12,11 @@ export const register = async (req, res) => {
         const { role, nama, email, password, tanggal_lahir, kelas, alamat, image } = req.body;
 
         // Validate role
-        if (!role || !['siswa', 'teacher', 'admin'].includes(role)) {
+        if (!role || !['siswa', 'teacher', 'admin', 'orang_tua'].includes(role)) {
             console.log('❌ Registration failed - Invalid or missing role');
             return res.status(400).json({
                 error: 'Validation error',
-                message: 'Valid role is required (siswa, teacher, or admin)'
+                message: 'Valid role is required (siswa, teacher, admin, or orang_tua)'
             });
         }
 
@@ -38,8 +38,16 @@ export const register = async (req, res) => {
             });
         }
 
+        if (role === 'orang_tua' && (!alamat)) {
+            console.log('❌ Registration failed - Missing orang_tua fields');
+            return res.status(400).json({
+                error: 'Validation error',
+                message: 'Alamat is required for orang_tua'
+            });
+        }
+
         // Check if email already exists
-        const { data: existingEmail } = await supabase
+        const { data: existingEmail } = await supabaseAdmin
             .from('app_users')
             .select('email')
             .eq('email', email)
@@ -90,7 +98,7 @@ export const register = async (req, res) => {
                 }
 
                 // Upload to role-specific bucket
-                const { data: uploadData, error: uploadError } = await supabase.storage
+                const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
                     .from(role) // bucket name: siswa, teacher, or admin
                     .upload(imageName, imageBuffer, {
                         contentType: `image/${imageName.split('.').pop()}`,
@@ -103,7 +111,7 @@ export const register = async (req, res) => {
                 }
 
                 // Get public URL
-                const { data: { publicUrl } } = supabase.storage
+                const { data: { publicUrl } } = supabaseAdmin.storage
                     .from(role)
                     .getPublicUrl(imageName);
 
@@ -112,7 +120,7 @@ export const register = async (req, res) => {
             }
 
             // Insert into app_users table
-            const { error: appUserError } = await supabase
+            const { error: appUserError } = await supabaseAdmin
                 .from('app_users')
                 .insert({
                     uid: userId,
@@ -132,7 +140,7 @@ export const register = async (req, res) => {
 
             switch (role) {
                 case 'siswa':
-                    const { data: siswaData, error: siswaError } = await supabase
+                    const { data: siswaData, error: siswaError } = await supabaseAdmin
                         .from('siswa')
                         .insert({
                             user_uid: userId,
@@ -150,7 +158,7 @@ export const register = async (req, res) => {
                     break;
 
                 case 'teacher':
-                    const { data: teacherData, error: teacherError } = await supabase
+                    const { data: teacherData, error: teacherError } = await supabaseAdmin
                         .from('teacher')
                         .insert({
                             user_uid: userId,
@@ -165,7 +173,7 @@ export const register = async (req, res) => {
                     break;
 
                 case 'admin':
-                    const { data: adminData, error: adminError } = await supabase
+                    const { data: adminData, error: adminError } = await supabaseAdmin
                         .from('admin')
                         .insert({
                             user_uid: userId,
@@ -177,6 +185,23 @@ export const register = async (req, res) => {
                         .single();
                     profileData = adminData;
                     profileError = adminError;
+                    break;
+
+                case 'orang_tua':
+                    const { data: parentData, error: parentError } = await supabaseAdmin
+                        .from('orang_tua')
+                        .insert({
+                            id: userId, // Use auth userId as the uuid PK
+                            nama,
+                            email,
+                            alamat,
+                            umur: req.body.umur,
+                            orang_tua_dari: req.body.orang_tua_dari
+                        })
+                        .select()
+                        .single();
+                    profileData = parentData;
+                    profileError = parentError;
                     break;
             }
 
@@ -203,6 +228,10 @@ export const register = async (req, res) => {
                 responseProfile.kelas = profileData.kelas;
                 responseProfile.tanggal_lahir = profileData.tanggal_lahir;
                 responseProfile.alamat = profileData.alamat;
+            } else if (role === 'orang_tua') {
+                responseProfile.alamat = profileData.alamat;
+                responseProfile.umur = profileData.umur;
+                responseProfile.orang_tua_dari = profileData.orang_tua_dari;
             }
 
             res.status(201).json({
@@ -278,8 +307,8 @@ export const login = async (req, res) => {
         const userId = authData.user.id;
         console.log('✅ User authenticated via Supabase Auth');
 
-        // Get role from app_users
-        const { data: appUser, error: userError } = await supabase
+        // Get role from app_users using supabaseAdmin to bypass RLS
+        const { data: appUser, error: userError } = await supabaseAdmin
             .from('app_users')
             .select('uid, role, email')
             .eq('uid', userId)
@@ -300,7 +329,7 @@ export const login = async (req, res) => {
 
         switch (appUser.role) {
             case 'siswa':
-                const { data: siswaProfile } = await supabase
+                const { data: siswaProfile } = await supabaseAdmin
                     .from('siswa')
                     .select('id, nama, email, nis, kelas, tanggal_lahir, alamat, image_url')
                     .eq('user_uid', userId)
@@ -309,7 +338,7 @@ export const login = async (req, res) => {
                 break;
 
             case 'teacher':
-                const { data: teacherProfile } = await supabase
+                const { data: teacherProfile } = await supabaseAdmin
                     .from('teacher')
                     .select('id, nama, email, nip, image_url')
                     .eq('user_uid', userId)
@@ -318,12 +347,29 @@ export const login = async (req, res) => {
                 break;
 
             case 'admin':
-                const { data: adminProfile } = await supabase
+                const { data: adminProfile } = await supabaseAdmin
                     .from('admin')
                     .select('id, nama, email, image_url')
                     .eq('user_uid', userId)
                     .single();
                 profile = adminProfile;
+                break;
+
+            case 'orang_tua':
+                console.log('⚡ DEBUG: Fetching orang_tua profile for:', userId);
+                const { data: parentProfile, error: parentError } = await supabaseAdmin
+                    .from('orang_tua')
+                    .select('id, nama, email, alamat, umur, orang_tua_dari')
+                    .eq('id', userId)
+                    .single();
+
+                if (parentProfile) {
+                    console.log('⚡ DEBUG: Found profile:', parentProfile);
+                } else {
+                    console.log('⚡ DEBUG: No profile found, error:', parentError);
+                }
+
+                profile = parentProfile;
                 break;
 
             default:
@@ -362,7 +408,8 @@ export const login = async (req, res) => {
                     email: profile.email,
                     image_url: profile.image_url,
                     ...(appUser.role === 'siswa' && { nis: profile.nis, kelas: profile.kelas }),
-                    ...(appUser.role === 'teacher' && { nip: profile.nip })
+                    ...(appUser.role === 'teacher' && { nip: profile.nip }),
+                    ...(appUser.role === 'orang_tua' && { alamat: profile.alamat, umur: profile.umur })
                 },
                 token: authData.session?.access_token,
                 refresh_token: authData.session?.refresh_token
@@ -477,7 +524,7 @@ export const updateProfile = async (req, res) => {
     try {
         const userId = req.user.id;
         const userRole = req.user.role;
-        const { nama, nis, tanggal_lahir, kelas, alamat, nip } = req.body;
+        const { nama, nis, tanggal_lahir, kelas, alamat, nip, umur, orang_tua_dari } = req.body;
         const file = req.file;
 
         console.log(`📝 Updating profile for user: ${userId}, Role: ${userRole}`);
@@ -535,6 +582,10 @@ export const updateProfile = async (req, res) => {
             if (alamat) updateData.alamat = alamat;
         } else if (userRole === 'teacher') {
             if (nip) updateData.nip = nip;
+        } else if (userRole === 'orang_tua') {
+            if (alamat) updateData.alamat = alamat;
+            if (umur) updateData.umur = umur;
+            if (orang_tua_dari) updateData.orang_tua_dari = orang_tua_dari;
         }
 
         // 3. Update Table using userSupabase
@@ -543,7 +594,7 @@ export const updateProfile = async (req, res) => {
         const { data: updatedProfile, error: updateError } = await userSupabase
             .from(table)
             .update(updateData)
-            .eq('user_uid', userId)
+            .eq(userRole === 'orang_tua' ? 'id' : 'user_uid', userId)
             .select()
             .single();
 
@@ -575,7 +626,11 @@ export const updateProfile = async (req, res) => {
                         tanggal_lahir: updatedProfile.tanggal_lahir,
                         alamat: updatedProfile.alamat
                     }),
-                    ...(userRole === 'teacher' && { nip: updatedProfile.nip })
+                    ...(userRole === 'teacher' && { nip: updatedProfile.nip }),
+                    ...(userRole === 'orang_tua' && {
+                        alamat: updatedProfile.alamat,
+                        umur: updatedProfile.umur
+                    })
                 }
             }
         });
@@ -627,6 +682,15 @@ export const getCurrentUser = async (req, res) => {
                     .single();
                 profile = adminProfile;
                 break;
+
+            case 'orang_tua':
+                const { data: parentProfile } = await supabase
+                    .from('orang_tua')
+                    .select('id, nama, email, image_url, alamat, umur, orang_tua_dari')
+                    .eq('id', userId) // Connect via id
+                    .single();
+                profile = parentProfile;
+                break;
         }
 
         res.status(200).json({
@@ -643,7 +707,8 @@ export const getCurrentUser = async (req, res) => {
                     email: profile.email,
                     image_url: profile.image_url,
                     ...(userRole === 'siswa' && { nis: profile.nis, kelas: profile.kelas }),
-                    ...(userRole === 'teacher' && { nip: profile.nip })
+                    ...(userRole === 'teacher' && { nip: profile.nip }),
+                    ...(userRole === 'orang_tua' && { alamat: profile.alamat, umur: profile.umur })
                 } : null
             }
         });

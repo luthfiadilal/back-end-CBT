@@ -41,11 +41,13 @@ export const getAllUsers = async (req, res) => {
         const { data: admins, error: adminError } = await supabaseAdmin.from('admin').select('*');
         const { data: teachers, error: teacherError } = await supabaseAdmin.from('teacher').select('*');
         const { data: students, error: studentError } = await supabaseAdmin.from('siswa').select('*');
+        const { data: parents, error: parentError } = await supabaseAdmin.from('orang_tua').select('*');
 
 
         const adminMap = new Map(admins?.map(a => [a.user_uid, a]));
         const teacherMap = new Map(teachers?.map(t => [t.user_uid, t]));
         const studentMap = new Map(students?.map(s => [s.user_uid, s]));
+        const parentMap = new Map(parents?.map(p => [p.id, p])); // orang_tua uses 'id' as uuid (connected to auth uid)
 
 
         const results = users.map(user => {
@@ -53,6 +55,7 @@ export const getAllUsers = async (req, res) => {
             if (user.role === 'admin') details = adminMap.get(user.uid) || {};
             else if (user.role === 'teacher') details = teacherMap.get(user.uid) || {};
             else if (user.role === 'siswa') details = studentMap.get(user.uid) || {};
+            else if (user.role === 'orang_tua') details = parentMap.get(user.uid) || {};
 
             const result = {
                 ...details, // Spread all profile details first
@@ -85,7 +88,7 @@ export const getAllUsers = async (req, res) => {
  */
 export const createUser = async (req, res) => {
     try {
-        const { role, nama, email, password, tanggal_lahir, kelas, alamat } = req.body;
+        const { role, nama, email, password, tanggal_lahir, kelas, alamat, umur, orang_tua_dari } = req.body;
         // Image upload is handled separately or can be added if needed, but keeping simple for now as per "form dynamic" request usually implies text fields first. 
         // If image is needed, we can add it, but usually admin creating user might skip image or upload later. 
         // The auth controller handles image, let's include image handling if we can, 
@@ -94,10 +97,10 @@ export const createUser = async (req, res) => {
         const { image } = req.body;
 
         // Validate role
-        if (!role || !['siswa', 'teacher', 'admin'].includes(role)) {
+        if (!role || !['siswa', 'teacher', 'admin', 'orang_tua'].includes(role)) {
             return res.status(400).json({
                 error: 'Validation error',
-                message: 'Valid role is required (siswa, teacher, or admin)'
+                message: 'Valid role is required (siswa, teacher, admin, or orang_tua)'
             });
         }
 
@@ -114,6 +117,13 @@ export const createUser = async (req, res) => {
             return res.status(400).json({
                 error: 'Validation error',
                 message: 'Tanggal lahir, kelas, and alamat are required for siswa'
+            });
+        }
+
+        if (role === 'orang_tua' && (!alamat)) {
+            return res.status(400).json({
+                error: 'Validation error',
+                message: 'Alamat is required for orang_tua'
             });
         }
 
@@ -223,6 +233,20 @@ export const createUser = async (req, res) => {
                         });
                     profileError = adminError;
                     break;
+
+                case 'orang_tua':
+                    const { error: parentError } = await supabaseAdmin
+                        .from('orang_tua')
+                        .insert({
+                            id: userId, // Use auth userId as the uuid PK
+                            nama,
+                            email,
+                            alamat,
+                            umur,
+                            orang_tua_dari: orang_tua_dari || null
+                        });
+                    profileError = parentError;
+                    break;
             }
 
             if (profileError) throw new Error(`${role} creation error: ${profileError.message}`);
@@ -258,7 +282,7 @@ export const createUser = async (req, res) => {
 export const updateUser = async (req, res) => {
     try {
         const { id } = req.params;
-        const { role, nama, email, password, tanggal_lahir, kelas, alamat, image } = req.body;
+        const { role, nama, email, password, tanggal_lahir, kelas, alamat, umur, orang_tua_dari, image } = req.body;
 
         // 1. Update Supabase Auth if email or password changed
         const authUpdates = {};
@@ -345,6 +369,16 @@ export const updateUser = async (req, res) => {
                 .update(updateData)
                 .eq('user_uid', id);
             profileError = adminError;
+        } else if (role === 'orang_tua') {
+            if (alamat) updateData.alamat = alamat;
+            if (umur) updateData.umur = umur;
+            if (orang_tua_dari) updateData.orang_tua_dari = orang_tua_dari;
+
+            const { error: parentError } = await supabaseAdmin
+                .from('orang_tua')
+                .update(updateData)
+                .eq('id', id); // orang_tua uses id as PK (which is the user_uid)
+            profileError = parentError;
         }
 
         if (profileError) throw new Error(`Profile update error: ${profileError.message}`);
@@ -464,6 +498,15 @@ export const deleteUser = async (req, res) => {
 
         if (adminError) {
             console.warn('Warning deleting admin:', adminError.message);
+        }
+
+        const { error: parentError } = await supabaseAdmin
+            .from('orang_tua')
+            .delete()
+            .eq('id', id);
+
+        if (parentError) {
+            console.warn('Warning deleting orang_tua:', parentError.message);
         }
 
         // Step 2: Delete from app_users
